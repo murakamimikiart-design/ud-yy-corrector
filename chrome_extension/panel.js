@@ -464,6 +464,23 @@ function __udyyRun() {
              : '選択しました。⌘C でコピーしてください');
   }
 
+  /* ⌘C だけでコピーできるようにする。
+     自分で範囲選択しているときはその選択を優先し、
+     何も選んでいないときだけ「最終テキスト」を横取りしてクリップボードへ入れる。 */
+  document.addEventListener('copy', function (e) {
+    if (!document.getElementById(ID)) return;          // パネルを閉じていたら何もしない
+    var sel = '';
+    try { sel = String(window.getSelection() || ''); } catch (err) { sel = ''; }
+    if (sel.trim()) return;                            // 選択があるなら邪魔しない
+    var t = outBox.value;
+    if (!t.trim()) return;
+    try {
+      (e.clipboardData || window.clipboardData).setData('text/plain', t);
+      e.preventDefault();
+      flash('✓ この発話をコピーしました（⌘C）');
+    } catch (err) { /* 失敗したら通常のコピー動作に任せる */ }
+  });
+
   /* ============ YY側の受信 ============ */
   function extAlive() {
     try {
