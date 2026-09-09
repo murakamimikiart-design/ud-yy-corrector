@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8">
+<title>UDトーク取り出しボタン</title>
+<style>
+body{font-family:"Hiragino Sans",sans-serif;max-width:720px;margin:40px auto;padding:0 20px;
+     background:#161a1f;color:#e9edf1;line-height:1.8}
+h1{font-size:20px} h2{font-size:16px;margin-top:32px}
+.bm{display:inline-block;background:#2f7de1;color:#fff;font-weight:700;font-size:16px;
+    padding:10px 20px;border-radius:9px;text-decoration:none;margin:14px 0}
+code{background:#0e1216;padding:2px 6px;border-radius:4px}
+ol{padding-left:22px} li{margin:8px 0}
+.note{background:#0e1216;border-left:3px solid #e8a33d;padding:10px 14px;border-radius:0 8px 8px 0}
+</style></head><body>
+<h1>UDトーク「ウェブで公開」からテキストを取り出すボタン</h1>
+
+<p>下のボタンを <b>ブックマークバーにドラッグ</b>して入れてください。クリックはしません（ドラッグです）。</p>
+
+<p><a class="bm" href="javascript:%28function%20%28%29%20%7B%0Avar%20old%20%3D%20document.getElementById%28%27udyy-panel%27%29%3B%0Aif%20%28old%29%20%7B%20old.remove%28%29%3B%20return%3B%20%7D%0Afunction%20clean%28el%29%20%7B%0Avar%20c%20%3D%20el.cloneNode%28true%29%3B%0Ac.querySelectorAll%28%27rt%2Crp%27%29.forEach%28function%20%28n%29%20%7B%20n.remove%28%29%3B%20%7D%29%3B%0Ac.querySelectorAll%28%27br%27%29.forEach%28function%20%28n%29%20%7B%20n.replaceWith%28%27%5Cn%27%29%3B%20%7D%29%3B%0Areturn%20c.textContent.replace%28%2F%5B%20%5Ct%5D%2B%2Fg%2C%20%27%20%27%29.trim%28%29%3B%0A%7D%0Afunction%20lines%28%29%20%7B%0Avar%20a%20%3D%20%5B%5D.slice.call%28document.querySelectorAll%28%27.v-list-item__subtitle%27%29%29%3B%0Aif%20%28%21a.length%29%20%7B%0Aa%20%3D%20%5B%5D.slice.call%28document.querySelectorAll%28%27div%2Cp%2Cli%27%29%29.filter%28function%20%28e%29%20%7B%0Areturn%20e.querySelector%28%27ruby%27%29%20%26%26%20%21e.querySelector%28%27div%27%29%3B%0A%7D%29%3B%0A%7D%0Areturn%20a.map%28clean%29.filter%28Boolean%29%3B%0A%7D%0Avar%20p%20%3D%20document.createElement%28%27div%27%29%3B%0Ap.id%20%3D%20%27udyy-panel%27%3B%0Ap.style.cssText%20%3D%20%27position%3Afixed%3Bright%3A12px%3Bbottom%3A12px%3Bz-index%3A2147483647%3Bwidth%3A360px%3Bbackground%3Argba%2817%2C20%2C24%2C.96%29%3Bcolor%3A%23fff%3Bfont%3A13px%2F1.5%20-apple-system%2Csans-serif%3Bpadding%3A9px%3Bborder-radius%3A10px%3Bborder%3A1px%20solid%20%23667%3Bbox-shadow%3A0%206px%2020px%20rgba%280%2C0%2C0%2C.6%29%27%3B%0Avar%20bar%20%3D%20document.createElement%28%27div%27%29%3B%0Abar.style.cssText%20%3D%20%27display%3Aflex%3Bgap%3A6px%3Balign-items%3Acenter%3Bmargin-bottom%3A7px%27%3B%0Avar%20ta%20%3D%20document.createElement%28%27textarea%27%29%3B%0Ata.style.cssText%20%3D%20%27width%3A100%25%3Bheight%3A96px%3Bbackground%3A%230c1015%3Bcolor%3A%23fff%3Bborder%3A1px%20solid%20%23556%3Bborder-radius%3A7px%3Bpadding%3A7px%3Bfont%3A14px%2F1.6%20sans-serif%3Bresize%3Avertical%27%3B%0Avar%20st%20%3D%20document.createElement%28%27div%27%29%3B%0Ast.style.cssText%20%3D%20%27color%3A%239fe3b5%3Bmargin-top%3A5px%3Bmin-height%3A17px%27%3B%0Afunction%20btn%28t%2C%20fn%29%20%7B%0Avar%20b%20%3D%20document.createElement%28%27button%27%29%3B%0Ab.textContent%20%3D%20t%3B%0Ab.style.cssText%20%3D%20%27font%3A13px%20sans-serif%3Bpadding%3A5px%209px%3Bborder-radius%3A6px%3Bborder%3A1px%20solid%20%23667%3Bbackground%3A%23243040%3Bcolor%3A%23fff%3Bcursor%3Apointer%27%3B%0Ab.onclick%20%3D%20fn%3B%0Areturn%20b%3B%0A%7D%0Afunction%20take%28n%2C%20label%29%20%7B%0Avar%20a%20%3D%20lines%28%29%3B%0Avar%20t%20%3D%20%28n%20%3F%20a.slice%28-n%29%20%3A%20a%29.join%28%27%5Cn%27%29%3B%0Ata.value%20%3D%20t%3B%20ta.focus%28%29%3B%20ta.select%28%29%3B%0Avar%20ok%20%3D%20false%3B%0Atry%20%7B%20ok%20%3D%20document.execCommand%28%27copy%27%29%3B%20%7D%20catch%20%28e%29%20%7B%20ok%20%3D%20false%3B%20%7D%0Aif%20%28navigator.clipboard%20%26%26%20navigator.clipboard.writeText%29%20%7B%0Anavigator.clipboard.writeText%28t%29.catch%28function%20%28%29%20%7B%7D%29%3B%0A%7D%0Ast.textContent%20%3D%20ok%20%3F%20%27%E2%9C%93%20%27%20%2B%20label%20%2B%20%27%E3%82%92%E3%82%B3%E3%83%94%E3%83%BC%E3%81%97%E3%81%BE%E3%81%97%E3%81%9F%27%0A%3A%20%27%E2%86%91%E9%81%B8%E6%8A%9E%E6%B8%88%E3%81%BF%E3%80%82%E2%8C%98C%20%E3%81%A7%E3%82%B3%E3%83%94%E3%83%BC%E3%81%97%E3%81%A6%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84%27%3B%0A%7D%0Abar.appendChild%28btn%28%27%E6%9C%80%E6%96%B01%E4%BB%B6%27%2C%20function%20%28%29%20%7B%20take%281%2C%20%271%E4%BB%B6%27%29%3B%20%7D%29%29%3B%0Abar.appendChild%28btn%28%27%E6%9C%80%E6%96%B03%E4%BB%B6%27%2C%20function%20%28%29%20%7B%20take%283%2C%20%273%E4%BB%B6%27%29%3B%20%7D%29%29%3B%0Abar.appendChild%28btn%28%27%E5%85%A8%E9%83%A8%27%2C%20%20%20function%20%28%29%20%7B%20take%280%2C%20%27%E5%85%A8%E9%83%A8%27%29%3B%20%7D%29%29%3B%0Abar.appendChild%28btn%28%27%C3%97%27%2C%20%20%20%20%20%20function%20%28%29%20%7B%20p.remove%28%29%3B%20%7D%29%29%3B%0Ap.appendChild%28bar%29%3B%20p.appendChild%28ta%29%3B%20p.appendChild%28st%29%3B%0Adocument.body.appendChild%28p%29%3B%0Atake%283%2C%20%273%E4%BB%B6%27%29%3B%0A%7D%29%28%29%3B">UD取り出し</a></p>
+
+<h2>使い方</h2>
+<ol>
+<li>UDトークの「ウェブで公開」ページ（<code>live.udtalk.jp/…</code>）を開く</li>
+<li>ブックマークバーの「UD取り出し」をクリック</li>
+<li>右下にパネルが出て、最新3件のテキストが選択された状態で入る</li>
+<li>そのまま <code>⌘C</code>（自動コピーできた場合は不要）</li>
+<li>修正補助ツールの UDトーク欄に <code>⌘V</code></li>
+</ol>
+<p>「最新1件」「最新3件」「全部」で取り出す量を切り替えられます。<code>×</code> でパネルを閉じます。</p>
+
+<h2>なぜ必要か</h2>
+<div class="note">
+公開ページの漢字には<b>ふりがな（ルビ）</b>が付いています。普通に選択してコピーすると
+「担当たんとう」「思おもいます」のようにルビが本文に混ざってしまい、差分比較が壊れます。
+このボタンはルビを取り除いた素のテキストだけを取り出します。
+</div>
+
+<h2>ブックマークバーが出ていないとき</h2>
+<p>Safari：メニューの「表示」→「お気に入りバーを表示」<br>
+Chrome：<code>⌘⇧B</code></p>
+
+<h2>うまく動かないとき</h2>
+<p>UDトーク側のページ構造が変わると取り出せなくなることがあります。
+その場合はパネルが空になるので、従来どおり UDトーク編集画面からコピーしてください。
+（このボタンは補助であり、無くても運用は止まりません）</p>
+</body></html>
