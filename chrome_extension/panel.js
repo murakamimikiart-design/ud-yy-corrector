@@ -121,7 +121,10 @@ function __udyyRun() {
   var css = 'all:initial;font-family:"Hiragino Sans",sans-serif;';
   var p = document.createElement('div');
   p.id = ID;
-  p.style.cssText = 'position:fixed;right:14px;bottom:14px;width:460px;max-height:88vh;overflow:auto;' +
+  /* 高さを固定する。中身が増えても外形とボタン位置が動かないようにして、
+     コピー操作中に的が移動しないようにしている。増減は候補リストの中で吸収する。 */
+  p.style.cssText = 'position:fixed;right:14px;bottom:14px;width:460px;' +
+    'height:min(620px,84vh);display:flex;flex-direction:column;overflow:hidden;' +
     'z-index:2147483647;background:#12161b;color:#e9edf1;font:13px/1.6 "Hiragino Sans",sans-serif;' +
     'padding:10px;border-radius:12px;border:1px solid #4a545e;box-shadow:0 10px 30px rgba(0,0,0,.6)';
 
@@ -138,7 +141,7 @@ function __udyyRun() {
     return b;
   }
 
-  var head = el('div', 'display:flex;gap:6px;align-items:center;margin-bottom:8px;cursor:move');
+  var head = el('div', 'flex:0 0 auto;display:flex;gap:6px;align-items:center;margin-bottom:8px;cursor:move');
   head.appendChild(el('b', 'flex:1;font-size:13px', 'UD × YY ライブ比較'));
 
   var live = true;
@@ -160,27 +163,28 @@ function __udyyRun() {
   head.appendChild(btn('×', function () { obs.disconnect(); p.remove(); }));
   p.appendChild(head);
 
-  var udBox = el('div', 'background:#0c1015;border:1px solid #e8a33d55;border-radius:8px;padding:7px 9px;' +
-    'font-size:15px;white-space:pre-wrap;max-height:110px;overflow:auto;margin-bottom:6px');
-  p.appendChild(el('div', 'font-size:11px;color:#e8a33d;margin-bottom:3px', 'UDトーク（自動取得）'));
+  var udBox = el('div', 'flex:0 0 auto;background:#0c1015;border:1px solid #e8a33d55;border-radius:8px;' +
+    'padding:7px 9px;font-size:15px;white-space:pre-wrap;height:76px;overflow:auto;margin-bottom:6px');
+  p.appendChild(el('div', 'flex:0 0 auto;font-size:11px;color:#e8a33d;margin-bottom:3px', 'UDトーク（自動取得）'));
   p.appendChild(udBox);
 
-  var yyLabel = el('div', 'font-size:11px;color:#5fb37a;margin-bottom:3px', 'YYprobe（ここに貼り付け ⌘V）');
+  var yyLabel = el('div', 'flex:0 0 auto;font-size:11px;color:#5fb37a;margin-bottom:3px', 'YYprobe（ここに貼り付け ⌘V）');
   p.appendChild(yyLabel);
-  var yyBox = el('textarea', 'width:100%;height:66px;background:#0c1015;color:#e9edf1;border:1px solid #5fb37a55;' +
-    'border-radius:8px;padding:7px 9px;font:15px/1.6 "Hiragino Sans",sans-serif;resize:vertical;margin-bottom:6px');
+  var yyBox = el('textarea', 'flex:0 0 auto;width:100%;height:66px;background:#0c1015;color:#e9edf1;border:1px solid #5fb37a55;' +
+    'border-radius:8px;padding:7px 9px;font:15px/1.6 "Hiragino Sans",sans-serif;resize:none;margin-bottom:6px');
   yyBox.placeholder = 'YYprobe のテキストを貼り付け';
   p.appendChild(yyBox);
 
-  var listWrap = el('div', 'margin-bottom:6px');
+  var listWrap = el('div', 'flex:1 1 auto;min-height:70px;overflow-y:auto;margin-bottom:6px');
   p.appendChild(listWrap);
 
-  p.appendChild(el('div', 'font-size:11px;color:#93a2b1;margin-bottom:3px', '最終テキスト（直接書き換え可）'));
-  var outBox = el('textarea', 'width:100%;height:70px;background:#0c1015;color:#e9edf1;border:1px solid #5a656f;' +
-    'border-radius:8px;padding:7px 9px;font:15px/1.6 "Hiragino Sans",sans-serif;resize:vertical');
+  p.appendChild(el('div', 'flex:0 0 auto;font-size:11px;color:#93a2b1;margin-bottom:3px', '最終テキスト（直接書き換え可）'));
+  var outBox = el('textarea', 'flex:0 0 auto;width:100%;height:84px;background:#0c1015;color:#e9edf1;' +
+    'border:1px solid #5a656f;border-radius:8px;padding:7px 9px;' +
+    'font:15px/1.6 "Hiragino Sans",sans-serif;resize:none');
   p.appendChild(outBox);
 
-  var foot = el('div', 'display:flex;gap:6px;align-items:center;margin-top:7px');
+  var foot = el('div', 'flex:0 0 auto;display:flex;gap:6px;align-items:center;margin-top:7px');
   foot.appendChild(btn('決定してコピー', decide, 'background:#2e7d46;border-color:#3c9a59;font-weight:700'));
   var showMinor = false;
   var minorBtn = btn('言い回しも表示', function () { showMinor = !showMinor; minorBtn.style.background = showMinor ? '#1b3358' : '#232c35'; render(); });
