@@ -144,7 +144,7 @@
     live = !live;
     liveBtn.textContent = '自動取得: ' + (live ? 'ON' : '固定');
     liveBtn.style.background = live ? '#1d4d2e' : '#5a3a12';
-    if (live) refreshUd();
+    if (live) { refreshUd(); applyYY(); }
   }, 'background:#1d4d2e');
   head.appendChild(liveBtn);
 
@@ -153,7 +153,7 @@
     var op = el('option', '', o[1]); op.value = o[0]; nSel.appendChild(op);
   });
   nSel.value = '2';
-  nSel.onchange = refreshUd;
+  nSel.onchange = function () { refreshUd(); applyYY(); };
   head.appendChild(nSel);
   head.appendChild(btn('×', function () { obs.disconnect(); p.remove(); }));
   p.appendChild(head);
@@ -163,7 +163,8 @@
   p.appendChild(el('div', 'font-size:11px;color:#e8a33d;margin-bottom:3px', 'UDトーク（自動取得）'));
   p.appendChild(udBox);
 
-  p.appendChild(el('div', 'font-size:11px;color:#5fb37a;margin-bottom:3px', 'YYprobe（ここに貼り付け ⌘V）'));
+  var yyLabel = el('div', 'font-size:11px;color:#5fb37a;margin-bottom:3px', 'YYprobe（ここに貼り付け ⌘V）');
+  p.appendChild(yyLabel);
   var yyBox = el('textarea', 'width:100%;height:66px;background:#0c1015;color:#e9edf1;border:1px solid #5fb37a55;' +
     'border-radius:8px;padding:7px 9px;font:15px/1.6 "Hiragino Sans",sans-serif;resize:vertical;margin-bottom:6px');
   yyBox.placeholder = 'YYprobe のテキストを貼り付け';
@@ -278,6 +279,28 @@
   yyBox.addEventListener('input', function () {
     clearTimeout(timer); timer = setTimeout(recompare, 200);
   });
+
+  /* YY側を拡張機能のストレージから自動受信する
+     （YYの配信ページに入れた yy_reader.js が書き込んでいる） */
+  var yyLines = null;
+  function applyYY() {
+    if (!live || !yyLines) return;
+    var n = parseInt(nSel.value, 10);
+    var t = yyLines.slice(-n).join('\n');
+    if (t !== yyBox.value) { yyBox.value = t; recompare(); }
+  }
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    yyLabel.textContent = 'YYprobe（自動受信）';
+    chrome.storage.local.get('udyy_yy', function (o) {
+      if (o && o.udyy_yy) { yyLines = o.udyy_yy.lines; applyYY(); }
+    });
+    chrome.storage.onChanged.addListener(function (ch, area) {
+      if (area === 'local' && ch.udyy_yy && ch.udyy_yy.newValue) {
+        yyLines = ch.udyy_yy.newValue.lines;
+        applyYY();
+      }
+    });
+  }
 
   /* 字幕の追加を監視して自動更新 */
   var obs = new MutationObserver(function () {

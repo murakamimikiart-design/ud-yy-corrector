@@ -126,9 +126,25 @@ python3 test_diff_engine.py
 
 ## ライブ比較（Chrome拡張）
 
-UDトークの公開ページ上に比較パネルを重ねる方式。**UD側は自動で入り、発話のたびに更新される**ので、
-貼り付けるのは YY 側だけで済む。ローカルのHTMLからは同一生成元ポリシーにより
-live.udtalk.jp の中身を読めないため、ページ側で動かす必要がある。
+**UD側もYY側もブラウザで読み取り、コピペなしで比較する。**
+
+| 側 | 配信の出し方 | ページ | 拡張機能側 |
+|---|---|---|---|
+| UDトーク | トーク公開画面の「ウェブで公開」 | `live.udtalk.jp/…` | `panel.js`（比較パネル本体） |
+| YYProbe | 文字起こし画面 左上のQRアイコン | `analytics.yyprobe-demo.com/meeting-viewing-mode…` | `yy.js`（読み取って共有） |
+
+`yy.js` が YY の発話を `chrome.storage.local` に書き、UD 側の `panel.js` が受け取って
+比較する。2つのタブ（またはウィンドウ）を開いたままにしておけばよい。
+
+YYの配信ページはルビが付かないので、そのまま取り出せる。日本語側は
+`.default-content .remark-content-div`、翻訳側（`.foreigncontent`、`d-none` で非表示）は使わない。
+
+**YYのタブは裏に回るため、Chrome のタイマー制限を避けて時刻ベースで更新している。**
+
+### ドメインについて
+検証時のYY配信URLは `analytics.yyprobe-demo.com` だった（名前に demo が入っている）。
+本番アカウントで別ドメインになる場合は `chrome_extension/manifest.json` の
+`matches` に追記して、拡張機能を再読み込みすること。
 
 ### 入れ方
 `chrome://extensions` →「デベロッパー モード」ON →「パッケージ化されていない拡張機能を読み込む」

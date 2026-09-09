@@ -1,12 +1,21 @@
 {
   "manifest_version": 3,
   "name": "UD × YY ライブ比較",
-  "version": "1.0",
-  "description": "UDトークの公開ページに、YYprobe との比較パネルを表示します。",
+  "version": "2.0",
+  "description": "UDトークとYYProbeの字幕配信ページを両方読み取り、比較パネルを表示します。",
+  "permissions": ["storage"],
   "content_scripts": [
     {
       "matches": ["https://live.udtalk.jp/*"],
       "js": ["panel.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://analytics.yyprobe-demo.com/*",
+        "https://analytics.yysystem-c001.com/*"
+      ],
+      "js": ["yy.js"],
       "run_at": "document_idle"
     }
   ]
