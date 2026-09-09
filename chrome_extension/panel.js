@@ -181,6 +181,7 @@ function __udyyRun() {
 
   /* ============ 画面 ============ */
   var fs = 15, full = false, live = true;
+  var flashUntil = 0;      // この時刻までは状態表示を上書きしない
   var udItems = [], selText = null, yyLines = null, result = null, timer = null;
 
   function el(tag, style, text) {
@@ -433,7 +434,8 @@ function __udyyRun() {
       }
     }
     paint();
-    if (result) {
+    // 「コピーしました」等の通知は、直後の更新で消えないよう数秒残す
+    if (result && Date.now() >= flashUntil) {
       var need = result.changes.length - minor;
       stat.textContent = '要判断 ' + need + ' / 言い回し ' + minor +
         (result.ratio < 0.4 ? '　※YYとの対応が弱いです' : '');
@@ -444,16 +446,22 @@ function __udyyRun() {
     outBox.value = result ? applyChoices(result.ud, result.changes) : '';
   }
 
+  function flash(msg, ms) {
+    flashUntil = Date.now() + (ms || 3500);
+    stat.textContent = msg;
+    stat.style.color = '#7ee2a0';
+    setTimeout(function () { stat.style.color = '#93a2b1'; render(); }, ms || 3500);
+  }
+
   function decide() {
     var t = outBox.value;
-    if (!t.trim()) { stat.textContent = 'コピーする内容がありません'; return; }
+    if (!t.trim()) { flash('コピーする内容がありません'); return; }
     outBox.focus(); outBox.select();
     var ok = false;
     try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).catch(function () { });
-    var msg = ok ? '✓ この発話をコピーしました' : '選択済み。⌘C を押してください';
-    if (!live) setLive(true);
-    stat.textContent = msg + '（自動取得を再開）';
+    flash(ok ? '✓ コピーしました。UDトークのこの発話に貼り付けてください'
+             : '選択しました。⌘C でコピーしてください');
   }
 
   /* ============ YY側の受信 ============ */
