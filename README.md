@@ -7,20 +7,24 @@ YYprobe の正確な文字起こしを「正」として、UDトークの誤り�
 
 ## クイックスタート
 
-### 必要な環境
-- **macOS**（Python 3.8 以上・標準の `/usr/bin/python3` でそのまま動く）
-- **インストール作業なし**：追加ライブラリは不要（tkinter と pbcopy/pbpaste だけを使用）
+### いちばん確実な使い方：ブラウザ版（推奨）
 
-### 起動方法
+Finder で **`uy_corrector.html` をダブルクリック**。Safari か Chrome で開きます。それだけです。
 
-Finder で `起動.command` をダブルクリック。または：
+- Python も追加インストールも不要
+- ネット接続も不要（ファイル1つで完結。会場のWi-Fiが不安定でも動く）
+- どの Mac でも、iPad でも、Windows でも同じように開ける
+- 会場のPCに配るときは、この 1 ファイルをコピーするだけ
+
+### 予備：Python 版（tkinter）
 
 ```bash
 python3 uy_transcription_corrector.py
 ```
 
-> ⚠️ 初回だけ macOS が「開発元を確認できません」と出ることがあります。
-> `起動.command` を右クリック →「開く」→「開く」で許可してください。
+Finder で `起動.command` をダブルクリックでも起動します。
+機能はブラウザ版と同じですが、**環境によってウィンドウが正しく動かないことが確認されています**
+（macOS 標準の Python に同梱される Tk が古いため）。ブラウザ版を主に使ってください。
 
 ### 動作確認（差分ロジックのテスト）
 
@@ -29,10 +33,13 @@ python3 test_diff_engine.py
 ```
 
 `OK` と出れば正常。GUI を開かずに確認できるので、本番前のチェックに使う。
+ブラウザ版の差分ロジックは、この Python 版と同じ結果になることを確認済み。
 
 ---
 
 ## 画面の使い方
+
+※ブラウザ版・Python 版とも画面構成は同じ。
 
 ```
 ┌─────────────────────┬─────────────────────┐
@@ -95,11 +102,16 @@ UD 側が正しい箇所や、UD で入れた表記はそのまま残る。
 
 ## トラブルシューティング
 
-### Q. `起動.command` をダブルクリックしても何も出ない
-ターミナルから直接実行してエラーを確認：
-```bash
-cd ~/Desktop/UD_YY && python3 uy_transcription_corrector.py
-```
+### Q. Python 版でウィンドウは出るのに操作できない
+macOS 標準 Python の Tk が古いことが原因。**ブラウザ版（`uy_corrector.html`）を使う。**
+機能は同じで、こちらは動作確認済み。
+
+### Q. ブラウザ版で「コピー」が効かない
+ブラウザがクリップボードを拒否した場合、下の「修正済みテキスト」欄を
+クリックして `⌘A`（全選択）→ `⌘C` でコピーできる。
+
+### Q. ブラウザ版で「貼り付け」はどうやる？
+左右の欄をクリックして `⌘V`。ブラウザなので普通の貼り付けがそのまま使える。
 
 ### Q. 「貼り付け」ボタンが効かない
 クリップボードが空か、他アプリがコピーを完了していない可能性。
@@ -126,13 +138,18 @@ cd ~/Desktop/UD_YY && python3 uy_transcription_corrector.py
 
 ### 構成
 ```
-uy_transcription_corrector.py   # GUI（tkinter・標準ライブラリのみ）
+uy_corrector.html               # ★ブラウザ版（本番で使う。これ1つで完結）
+uy_transcription_corrector.py   # 予備の Python 版（tkinter）
 diff_engine.py                  # 差分ロジック（GUI非依存・単体テスト可能）
 test_diff_engine.py             # 単体テスト 13 件
 testdata/samples.json           # 練習用サンプル（誤認識の実例を追記していく）
-起動.command                     # ダブルクリック起動用
+起動.command                     # Python 版のダブルクリック起動用
 legacy_pysimplegui_prototype.py # 初版プロトタイプ（PySimpleGUI 版・参考用）
 ```
+
+ブラウザ版はサンプルを HTML の中に埋め込んである（`file://` から外部ファイルを
+読み込めないため）。`testdata/samples.json` に実例を足したときは、
+ブラウザ版の `SAMPLES` にも同じものを足す。
 
 ### 差分検出
 - 比較前に正規化：空白・句読点を無視（任意）、NFKC で全半角を揃える。
@@ -167,4 +184,4 @@ legacy_pysimplegui_prototype.py # 初版プロトタイプ（PySimpleGUI 版・�
 ---
 
 **最終更新：** 2026年9月9日
-**バージョン：** 0.2.0（tkinter 版・依存ライブラリなし）
+**バージョン：** 0.3.0（ブラウザ版を主・Python 版を予備に）
