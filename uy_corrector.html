@@ -7,8 +7,7 @@
 <style>
   :root{
     --bg:#161a1f; --panel:#0e1216; --line:#2c333a; --fg:#e9edf1; --dim:#93a2b1;
-    --ud:#e8a33d; --yy:#5fb37a; --accent:#2f7de1; --fix-bg:#1d4d2e; --fix-fg:#c9f7d5;
-    --ts:17px;
+    --ud:#e8a33d; --yy:#5fb37a; --cus:#7aa9ff; --accent:#2f7de1; --ts:17px;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--fg);
@@ -16,18 +15,17 @@
        height:100vh;display:flex;flex-direction:column;overflow:hidden}
   header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
          padding:10px 14px;border-bottom:1px solid var(--line)}
-  h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.02em}
+  h1{font-size:16px;margin:0;font-weight:700}
   .spacer{flex:1}
   button{font:inherit;font-size:14px;padding:6px 12px;border-radius:7px;
          border:1px solid var(--line);background:#222a31;color:var(--fg);cursor:pointer}
   button:hover{background:#2b343d}
   button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
-  button.go{background:#2e7d46;border-color:#2e7d46;color:#fff;font-weight:700}
+  button.decide{background:#2e7d46;border-color:#3c9a59;color:#fff;font-weight:700;font-size:15px}
   label.chk{font-size:14px;color:var(--dim);display:flex;align-items:center;gap:5px;cursor:pointer}
   main{flex:1;display:flex;flex-direction:column;gap:10px;padding:12px 14px;overflow:hidden}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;min-height:0}
-  .row.inputs{flex:1.1}
-  .row.mid{flex:1}
+  .row.inputs{flex:.85} .row.mid{flex:1.4}
   .pane{display:flex;flex-direction:column;min-height:0}
   .pane h2{font-size:14px;margin:0 0 6px;display:flex;align-items:center;gap:8px}
   .pane h2 .tag{font-weight:700}
@@ -37,20 +35,44 @@
        border:1px solid var(--line);border-radius:9px;padding:10px 12px;
        font:inherit;font-size:var(--ts);line-height:1.75;resize:none;overflow:auto}
   textarea:focus{outline:2px solid var(--accent);outline-offset:-2px}
-  .btns{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
-  #list{padding:6px}
-  .chg{padding:8px 10px;border-radius:7px;margin:3px 0;cursor:pointer;
-       border:1px solid transparent;background:#1a2129;user-select:none;font-size:var(--ts)}
-  .chg.on{background:#1d4d2e;border-color:#397d55;color:#e6ffee}
-  .chg.off{opacity:.5;text-decoration:line-through}
-  .chg:hover{border-color:var(--accent)}
+  .btns{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center}
+
+  /* 修正候補 */
+  #list{padding:8px}
+  .chg{border:1px solid var(--line);border-radius:9px;padding:7px 8px;margin:0 0 7px;
+       background:#151b21}
+  .opts{display:flex;gap:7px;flex-wrap:wrap;align-items:stretch}
+  .no{flex:0 0 auto;display:flex;align-items:center;padding:0 2px;
+      font-size:12px;color:var(--dim)}
+  .opt{flex:1;min-width:120px;text-align:left;font-size:var(--ts);line-height:1.5;
+       padding:7px 10px;border-radius:7px;border:1px solid var(--line);
+       background:#1b232b;color:var(--fg);cursor:pointer}
+  .opt .who{display:block;font-size:11px;letter-spacing:.04em;margin-bottom:2px;color:var(--dim)}
+  .opt.udopt.sel{background:#4a3410;border-color:var(--ud);box-shadow:inset 0 0 0 1px var(--ud)}
+  .opt.udopt.sel .who{color:var(--ud)}
+  .opt.yyopt.sel{background:#14432a;border-color:var(--yy);box-shadow:inset 0 0 0 1px var(--yy)}
+  .opt.yyopt.sel .who{color:var(--yy)}
+  .opt.edit{flex:0 0 auto;min-width:0;padding:7px 11px;font-size:15px}
+  .opt.edit.sel{background:#1b3358;border-color:var(--cus);box-shadow:inset 0 0 0 1px var(--cus)}
+  .none{color:var(--dim);font-style:italic}
+  .ci[hidden]{display:none}
+  .ci{display:block;width:100%;margin-top:7px;padding:7px 10px;border-radius:7px;
+      border:1px solid var(--cus);background:#0d1622;color:var(--fg);font:inherit;font-size:var(--ts)}
   .empty{color:var(--dim);padding:10px;font-size:14px}
-  mark{background:var(--fix-bg);color:var(--fix-fg);border-radius:3px;padding:1px 2px}
-  .out{flex:.8;display:flex;flex-direction:column;min-height:0}
+
+  /* プレビュー */
+  mark{border-radius:3px;padding:1px 2px}
+  mark.yy{background:#1d4d2e;color:#c9f7d5}
+  mark.cus{background:#1b3358;color:#cfe0ff}
+  .out{flex:.75;display:flex;flex-direction:column;min-height:0}
   footer{padding:9px 14px;border-top:1px solid var(--line);background:#0b0e11;
          color:var(--dim);font-size:14px}
-  footer.warn{color:#ffd479}
-  footer.ok{color:#7ee2a0}
+  footer.warn{color:#ffd479} footer.ok{color:#7ee2a0}
+  .legend{font-size:12px;color:var(--dim);display:flex;gap:12px;flex-wrap:wrap}
+  .legend i{font-style:normal;padding:1px 6px;border-radius:4px}
+  .legend .l-ud{background:#4a3410;color:#ffcf8a}
+  .legend .l-yy{background:#14432a;color:#a9e9c1}
+  .legend .l-cus{background:#1b3358;color:#cfe0ff}
 </style>
 </head>
 <body>
@@ -68,42 +90,42 @@
 <main>
   <div class="row inputs">
     <div class="pane ud">
-      <h2><span class="tag">UDトーク</span><span class="sub">修正する側 — ここに貼り付け（⌘V）</span></h2>
+      <h2><span class="tag">UDトーク</span><span class="sub">公開に使う側 — ここに貼り付け（⌘V）</span></h2>
       <textarea id="ud" placeholder="UDトークの文字起こしを貼り付け"></textarea>
-      <div class="btns">
-        <button data-clear="ud">クリア</button>
-      </div>
     </div>
     <div class="pane yy">
-      <h2><span class="tag">YYprobe</span><span class="sub">正しい側 — ここに貼り付け（⌘V）</span></h2>
-      <textarea id="yy" placeholder="YYprobe の正しい文字起こしを貼り付け"></textarea>
-      <div class="btns">
-        <button data-clear="yy">クリア</button>
-        <button id="cmpBtn" class="primary">差分を検出</button>
-      </div>
+      <h2><span class="tag">YYprobe</span><span class="sub">もう一方の認識結果 — ここに貼り付け（⌘V）</span></h2>
+      <textarea id="yy" placeholder="YYprobe の文字起こしを貼り付け"></textarea>
     </div>
   </div>
 
   <div class="row mid">
     <div class="pane">
-      <h2>修正候補<span class="sub">クリックで 採用 ⇄ 不採用</span></h2>
+      <h2>どちらが正しい？<span class="sub">食い違った箇所ごとに選ぶ。両方違えば ✎ で入力</span></h2>
       <div id="list" class="box"></div>
       <div class="btns">
-        <button id="allOn">すべて採用</button>
-        <button id="allOff">すべて不採用</button>
+        <button id="allUd">全部 UD</button>
+        <button id="allYy">全部 YY</button>
+        <button data-clear="ud">UD欄クリア</button>
+        <button data-clear="yy">YY欄クリア</button>
       </div>
     </div>
     <div class="pane">
-      <h2>プレビュー<span class="sub">緑色の部分が直ります</span></h2>
+      <h2>公開される文<span class="sub">選んだ結果</span></h2>
       <div id="preview" class="box"></div>
+      <div class="btns legend">
+        <span><i class="l-ud">無印</i> UDのまま</span>
+        <span><i class="l-yy">緑</i> YYを採用</span>
+        <span><i class="l-cus">青</i> 自分で入力</span>
+      </div>
     </div>
   </div>
 
   <div class="pane out">
-    <h2>修正済みテキスト<span class="sub">これをUDトークに貼り付け</span></h2>
+    <h2>最終テキスト<span class="sub">ここを直接書き換えてもOK</span></h2>
     <textarea id="out"></textarea>
     <div class="btns">
-      <button id="copyBtn" class="go">コピー（⌘Return）</button>
+      <button id="decideBtn" class="decide">これで決定 → コピー（⌘Return）</button>
       <button id="nextBtn">UD欄に反映して次へ</button>
     </div>
   </div>
@@ -118,7 +140,6 @@
 
 const IGNORE_PUNCT = new Set("、。，．,.！？!?…‥・「」『』（）()〈〉《》【】〔〕”“\"'‘’；;：:".split(""));
 
-// 比較用に正規化し、各文字が原文の何文字目由来かを覚えておく
 function fold(text, ignorePunct, ignoreSpace){
   const chars = [], origin = [];
   for (let i = 0; i < text.length; i++){
@@ -133,38 +154,32 @@ function fold(text, ignorePunct, ignoreSpace){
   return {s: chars.join(""), origin};
 }
 
-// LCS で一致ブロックを求め、一致しない区間を返す
 function rawOpcodes(a, b){
   const n = a.length, m = b.length;
   if (n === 0 && m === 0) return [];
   if (n === 0) return [[0, 0, 0, m]];
   if (m === 0) return [[0, n, 0, 0]];
-
   const w = m + 1;
   const dp = new Uint32Array((n + 1) * w);
-  for (let i = n - 1; i >= 0; i--){
-    for (let j = m - 1; j >= 0; j--){
-      dp[i * w + j] = a[i] === b[j]
-        ? dp[(i + 1) * w + j + 1] + 1
-        : Math.max(dp[(i + 1) * w + j], dp[i * w + j + 1]);
-    }
-  }
+  for (let i = n - 1; i >= 0; i--)
+    for (let j = m - 1; j >= 0; j--)
+      dp[i * w + j] = a[i] === b[j] ? dp[(i + 1) * w + j + 1] + 1
+                                    : Math.max(dp[(i + 1) * w + j], dp[i * w + j + 1]);
   const ops = [];
   let i = 0, j = 0, si = 0, sj = 0, inDiff = false;
-  const closeDiff = () => { if (inDiff){ ops.push([si, i, sj, j]); inDiff = false; } };
+  const close = () => { if (inDiff){ ops.push([si, i, sj, j]); inDiff = false; } };
   while (i < n && j < m){
-    if (a[i] === b[j]){ closeDiff(); i++; j++; }
+    if (a[i] === b[j]){ close(); i++; j++; }
     else {
       if (!inDiff){ si = i; sj = j; inDiff = true; }
       if (dp[(i + 1) * w + j] >= dp[i * w + j + 1]) i++; else j++;
     }
   }
   if (i < n || j < m){ if (!inDiff){ si = i; sj = j; inDiff = true; } i = n; j = m; }
-  closeDiff();
+  close();
   return ops;
 }
 
-// 近い変更同士をまとめる（日本語は1文字差分だと細切れになるため）
 function mergeOps(ops, gap){
   const out = [];
   for (const [i1, i2, j1, j2] of ops){
@@ -177,7 +192,6 @@ function mergeOps(ops, gap){
   return out;
 }
 
-// 正規化後の位置を原文の位置に戻す（終端は次の残存文字の直前まで広げる）
 function toOrigin(origin, len, i1, i2){
   const start = i1 < origin.length ? origin[i1] : len;
   const end   = i2 < origin.length ? origin[i2] : len;
@@ -187,51 +201,45 @@ function toOrigin(origin, len, i1, i2){
 function similarity(a, b, ops){
   const total = a.length + b.length;
   if (total === 0) return 1;
-  let diff = 0;
-  for (const [i1, i2, j1, j2] of ops) diff += (i2 - i1) + (j2 - j1);
-  return Math.max(0, (total - diff) / total);
+  let d = 0;
+  for (const [i1, i2, j1, j2] of ops) d += (i2 - i1) + (j2 - j1);
+  return Math.max(0, (total - d) / total);
 }
 
 function compare(ud, yy, ignorePunct = true, gap = 1){
   const A = fold(ud, ignorePunct, true), B = fold(yy, ignorePunct, true);
-  // 極端に長いときは処理量を抑える（本番の1発話は数百文字なので通常は通らない）
-  if (A.s.length * B.s.length > 4000000){
-    return {ud, yy, changes: [], similarity: 1, tooLong: true};
-  }
+  if (A.s.length * B.s.length > 4000000) return {ud, yy, changes: [], similarity: 1, tooLong: true};
   const ops = mergeOps(rawOpcodes(A.s, B.s), gap);
   const changes = ops.map(([i1, i2, j1, j2], k) => {
     const [us, ue] = toOrigin(A.origin, ud.length, i1, i2);
     const [ys, ye] = toOrigin(B.origin, yy.length, j1, j2);
     return {
       index: k + 1,
-      kind: i1 === i2 ? "insert" : (j1 === j2 ? "delete" : "replace"),
       ud: ud.slice(us, ue), yy: yy.slice(ys, ye),
-      udStart: us, udEnd: ue, accepted: true
+      udStart: us, udEnd: ue,
+      choice: "yy",        // 既定は YY。UD が正しければクリックで切り替える
+      custom: ""
     };
   });
   return {ud, yy, changes, similarity: similarity(A.s, B.s, ops)};
 }
 
-// 採用した変更だけを UD 原文に当てる
-function applyChanges(ud, changes){
+// 選んだ結果を UD 原文に当てる。spans は色分け用 [start, end, 'yy'|'cus']
+function applyChoices(ud, changes){
   let out = "", cursor = 0;
   const spans = [];
   for (const c of [...changes].sort((x, y) => x.udStart - y.udStart)){
-    if (!c.accepted || c.udStart < cursor) continue;
+    if (c.udStart < cursor) continue;
+    if (c.choice === "ud") continue;                 // UD のまま＝手を加えない
+    const text = c.choice === "custom" ? c.custom : c.yy;
     out += ud.slice(cursor, c.udStart);
     const start = out.length;
-    out += c.yy;
-    if (c.yy) spans.push([start, out.length]);
+    out += text;
+    if (text) spans.push([start, out.length, c.choice === "custom" ? "cus" : "yy"]);
     cursor = c.udEnd;
   }
   out += ud.slice(cursor);
   return {text: out, spans};
-}
-
-function label(c){
-  if (c.kind === "replace") return `${c.index}. 「${c.ud}」→「${c.yy}」`;
-  if (c.kind === "delete")  return `${c.index}. 「${c.ud}」を削除（YYには無い）`;
-  return `${c.index}. 「${c.yy}」を挿入（UDに抜けている）`;
 }
 
 /* ---------------- 練習用サンプル ---------------- */
@@ -248,15 +256,15 @@ const SAMPLES = [
   {title:"余分な聞き取り（環境音・重複）",
    ud:"あの、えー、資料の3ページをご覧ください。ください。",
    yy:"資料の3ページをご覧ください。"},
-  {title:"句読点だけの違い（差分に出さない想定）",
-   ud:"ありがとうございました",
-   yy:"ありがとうございました。"},
+  {title:"YY側が間違っている例（UDを選ぶ）",
+   ud:"UDトークとYYprobeを併用します。",
+   yy:"UDトークとワイワイプローブを併用します。"},
+  {title:"両方まちがっている例（✎で入力）",
+   ud:"次は情報保証について話します。",
+   yy:"次は情報補償について話します。"},
   {title:"複数行・専門用語",
    ud:"情報保証の観点から考えると\n用途トークは標準的なツールです\nしかし精度に課題があります",
    yy:"情報保障の観点から考えると\nUDトークは標準的なツールです\nしかし精度に課題があります"},
-  {title:"数字・単位の誤り",
-   ud:"参加者は約120名、開始は14自30分です。",
-   yy:"参加者は約120名、開始は14時30分です。"},
   {title:"一致（修正不要）",
    ud:"本日はお集まりいただきありがとうございます。",
    yy:"本日はお集まりいただきありがとうございます。"}
@@ -269,66 +277,109 @@ const listEl = $("list"), prevEl = $("preview"), statusEl = $("status");
 const autoChk = $("autoChk"), punctChk = $("punctChk");
 let result = null, sampleIdx = 0, fontSize = 17, timer = null;
 
-function esc(s){
-  return s.replace(/[&<>]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+const esc = s => s.replace(/[&<>]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+function setStatus(text, cls){ statusEl.textContent = text; statusEl.className = cls || ""; }
+
+function optButton(cls, who, text, emptyLabel){
+  const b = document.createElement("button");
+  b.className = "opt " + cls;
+  const w = document.createElement("span");
+  w.className = "who"; w.textContent = who;
+  b.appendChild(w);
+  if (text) b.appendChild(document.createTextNode(text));
+  else {
+    const em = document.createElement("span");
+    em.className = "none"; em.textContent = emptyLabel;
+    b.appendChild(em);
+  }
+  return b;
 }
 
-function setStatus(text, cls){
-  statusEl.textContent = text;
-  statusEl.className = cls || "";
+function buildList(){
+  listEl.innerHTML = "";
+  if (!result || !result.changes.length){
+    const d = document.createElement("div");
+    d.className = "empty";
+    d.textContent = (result && result.ud.trim() && result.yy.trim())
+      ? "食い違いはありません。UDトークのままで大丈夫です。"
+      : "両方に貼り付けると、食い違った箇所がここに並びます。";
+    listEl.appendChild(d);
+    return;
+  }
+  result.changes.forEach(c => {
+    const row = document.createElement("div");
+    row.className = "chg";
+
+    const no = document.createElement("div");
+    no.className = "no"; no.textContent = c.index;
+
+    const opts = document.createElement("div");
+    opts.className = "opts";
+    const bUd = optButton("udopt", "UDトーク", c.ud, "（入れない）");
+    const bYy = optButton("yyopt", "YYprobe", c.yy, "（削除する）");
+    const bEd = document.createElement("button");
+    bEd.className = "opt edit"; bEd.textContent = "✎"; bEd.title = "自分で入力";
+    opts.append(no, bUd, bYy, bEd);
+    row.appendChild(opts);
+
+    const ci = document.createElement("input");
+    ci.className = "ci"; ci.type = "text"; ci.hidden = true;
+    ci.placeholder = "正しい言葉を入力";
+    row.appendChild(ci);
+
+    const paint = () => {
+      bUd.classList.toggle("sel", c.choice === "ud");
+      bYy.classList.toggle("sel", c.choice === "yy");
+      bEd.classList.toggle("sel", c.choice === "custom");
+      ci.hidden = c.choice !== "custom";
+    };
+    const pick = mode => { c.choice = mode; paint(); render(); };
+
+    bUd.addEventListener("click", () => pick("ud"));
+    bYy.addEventListener("click", () => pick("yy"));
+    bEd.addEventListener("click", () => {
+      if (!c.custom) c.custom = c.yy || c.ud;
+      ci.value = c.custom;
+      pick("custom");
+      ci.focus(); ci.select();
+    });
+    ci.addEventListener("input", () => { c.custom = ci.value; render(); });
+    paint();
+    listEl.appendChild(row);
+  });
+}
+
+function render(){
+  if (!result) return;
+  const {text, spans} = applyChoices(result.ud, result.changes);
+
+  let html = "", cursor = 0;
+  for (const [s, e, kind] of spans){
+    html += esc(text.slice(cursor, s)) + `<mark class="${kind}">` + esc(text.slice(s, e)) + "</mark>";
+    cursor = e;
+  }
+  html += esc(text.slice(cursor));
+  prevEl.innerHTML = html.replace(/\n/g, "<br>") || '<span class="empty">（ここに公開される文が出ます）</span>';
+  outEl.value = text;
+
+  const hasUd = result.ud.trim(), hasYy = result.yy.trim(), n = result.changes.length;
+  const cnt = {ud: 0, yy: 0, custom: 0};
+  result.changes.forEach(c => cnt[c.choice]++);
+  if (result.tooLong) setStatus("テキストが長すぎます。数文ずつに分けて貼り付けてください。", "warn");
+  else if (!hasUd && !hasYy) setStatus("両方のテキストを貼り付けてください（左＝UDトーク／右＝YYprobe）");
+  else if (!hasYy) setStatus("YYprobe のテキストを右に貼り付けてください", "warn");
+  else if (!hasUd) setStatus("UDトークのテキストを左に貼り付けてください", "warn");
+  else if (n === 0) setStatus("✓ 食い違いなし。UDトークのままで大丈夫です。", "ok");
+  else setStatus(`食い違い ${n} 箇所　→　UD採用 ${cnt.ud}／YY採用 ${cnt.yy}／自分で入力 ${cnt.custom}　（一致率 ${(result.similarity * 100).toFixed(1)}%）`);
 }
 
 function runCompare(){
   timer = null;
   const ud = udEl.value, yy = yyEl.value;
-  result = yy.trim()
-    ? compare(ud, yy, punctChk.checked)   // YY が空のときは比較しない（UD全消しを防ぐ）
-    : {ud, yy, changes: [], similarity: 1};
-
-  listEl.innerHTML = "";
-  if (!result.changes.length){
-    const d = document.createElement("div");
-    d.className = "empty";
-    d.textContent = ud.trim() && yy.trim() ? "差分はありません。" : "テキストを貼り付けると、ここに修正候補が出ます。";
-    listEl.appendChild(d);
-  } else {
-    result.changes.forEach((c, i) => {
-      const d = document.createElement("div");
-      d.className = "chg on";
-      d.textContent = label(c);
-      d.addEventListener("click", () => {
-        c.accepted = !c.accepted;
-        d.className = "chg " + (c.accepted ? "on" : "off");
-        render();
-      });
-      listEl.appendChild(d);
-    });
-  }
+  result = yy.trim() ? compare(ud, yy, punctChk.checked)
+                     : {ud, yy, changes: [], similarity: 1};
+  buildList();
   render();
-}
-
-function render(){
-  if (!result) return;
-  const {text, spans} = applyChanges(result.ud, result.changes);
-
-  let html = "", cursor = 0;
-  for (const [s, e] of spans){
-    html += esc(text.slice(cursor, s)) + "<mark>" + esc(text.slice(s, e)) + "</mark>";
-    cursor = e;
-  }
-  html += esc(text.slice(cursor));
-  prevEl.innerHTML = html.replace(/\n/g, "<br>") || '<span class="empty">（ここに修正後の文が出ます）</span>';
-  outEl.value = text;
-
-  const hasUd = result.ud.trim(), hasYy = result.yy.trim();
-  const n = result.changes.length;
-  const taken = result.changes.filter(c => c.accepted).length;
-  if (result.tooLong) setStatus("テキストが長すぎます。数文ずつに分けて貼り付けてください。", "warn");
-  else if (!hasUd && !hasYy) setStatus("両方のテキストを貼り付けてください（左＝UDトーク／右＝YYprobe）");
-  else if (!hasYy) setStatus("YYprobe のテキストを右に貼り付けてください", "warn");
-  else if (!hasUd) setStatus("UDトークのテキストを左に貼り付けてください", "warn");
-  else if (n === 0) setStatus("✓ 差分なし。修正の必要はありません。", "ok");
-  else setStatus(`差分 ${n} 件／採用 ${taken} 件　一致率 ${(result.similarity * 100).toFixed(1)}%`);
 }
 
 function schedule(){
@@ -340,60 +391,53 @@ function schedule(){
 udEl.addEventListener("input", schedule);
 yyEl.addEventListener("input", schedule);
 punctChk.addEventListener("change", runCompare);
-$("cmpBtn").addEventListener("click", runCompare);
 
-document.querySelectorAll("[data-clear]").forEach(b => {
-  b.addEventListener("click", () => { $(b.dataset.clear).value = ""; runCompare(); });
-});
+document.querySelectorAll("[data-clear]").forEach(b =>
+  b.addEventListener("click", () => { $(b.dataset.clear).value = ""; runCompare(); }));
 
-$("allOn").addEventListener("click", () => setAll(true));
-$("allOff").addEventListener("click", () => setAll(false));
-function setAll(on){
+function setAll(mode){
   if (!result) return;
-  result.changes.forEach(c => c.accepted = on);
-  [...listEl.querySelectorAll(".chg")].forEach(d => d.className = "chg " + (on ? "on" : "off"));
-  render();
+  result.changes.forEach(c => c.choice = mode);
+  buildList(); render();
 }
+$("allUd").addEventListener("click", () => setAll("ud"));
+$("allYy").addEventListener("click", () => setAll("yy"));
 
 $("sampleBtn").addEventListener("click", () => {
   const s = SAMPLES[sampleIdx % SAMPLES.length];
   sampleIdx++;
-  udEl.value = s.ud;
-  yyEl.value = s.yy;
+  udEl.value = s.ud; yyEl.value = s.yy;
   runCompare();
   setStatus(`サンプル: ${s.title}　／　${statusEl.textContent}`);
 });
 
 $("resetBtn").addEventListener("click", () => {
   udEl.value = ""; yyEl.value = ""; outEl.value = "";
-  runCompare();
-  udEl.focus();
+  runCompare(); udEl.focus();
 });
 
 $("nextBtn").addEventListener("click", () => {
-  udEl.value = outEl.value;
-  yyEl.value = "";
-  runCompare();
-  yyEl.focus();
+  udEl.value = outEl.value; yyEl.value = "";
+  runCompare(); yyEl.focus();
 });
 
-$("copyBtn").addEventListener("click", copyOut);
-function copyOut(){
+$("decideBtn").addEventListener("click", decide);
+function decide(){
   const text = outEl.value;
-  if (!text.trim()){ setStatus("コピーする内容がありません。", "warn"); return; }
-  const done = () => setStatus("✓ コピーしました。UDトークに貼り付けてください。", "ok");
-  if (navigator.clipboard && navigator.clipboard.writeText){
+  if (!text.trim()){ setStatus("決定する内容がありません。", "warn"); return; }
+  const done = () => setStatus("✓ 決定してコピーしました。UDトークに貼り付けてください。", "ok");
+  if (navigator.clipboard && navigator.clipboard.writeText)
     navigator.clipboard.writeText(text).then(done).catch(fallback);
-  } else fallback();
+  else fallback();
   function fallback(){
     outEl.select();
     try { document.execCommand("copy"); done(); }
-    catch(e){ setStatus("コピーできませんでした。下の欄を選んで ⌘C を押してください。", "warn"); }
+    catch(e){ setStatus("コピーできませんでした。最終テキスト欄を選んで ⌘C を押してください。", "warn"); }
   }
 }
 
 document.addEventListener("keydown", e => {
-  if ((e.metaKey || e.ctrlKey) && e.key === "Enter"){ e.preventDefault(); copyOut(); }
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter"){ e.preventDefault(); decide(); }
 });
 
 function setFont(px){
