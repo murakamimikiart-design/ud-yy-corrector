@@ -1,3 +1,7 @@
+/* Chrome拡張用。udtalk_live_panel.js をそのまま関数に包んだもの。
+   ページを開くと自動で表示され、⌥U（option + U）で開閉できる。
+   元コードを編集したら build_extension.command を実行して作り直すこと。 */
+function __udyyRun() {
 /* UDトーク「ウェブで公開」ページ（live.udtalk.jp）に、
    UD × YY 比較パネルをそのまま重ねて表示するブックマークレット。
 
@@ -306,3 +310,9 @@
 
   refreshUd();
 })();
+
+}
+__udyyRun();
+document.addEventListener('keydown', function (e) {
+  if (e.altKey && (e.key === 'u' || e.key === 'U' || e.code === 'KeyU')) __udyyRun();
+});

@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 .DS_Store
 _harness_tmp.html
+_bmtest_tmp.html
+_exttest_tmp.html
