@@ -26,7 +26,8 @@
         return e.querySelector('ruby') && !e.querySelector('div');
       });
     }
-    return a.map(clean).filter(Boolean);
+    // 認識中の途中経過は「...」だけの行として出るので落とす
+    return a.map(clean).filter(function (t) { return t && !/^[.．…・\s]+$/.test(t); });
   }
 
   var p = document.createElement('div');
