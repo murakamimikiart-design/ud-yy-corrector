@@ -25,7 +25,7 @@
   label.chk{font-size:14px;color:var(--dim);display:flex;align-items:center;gap:5px;cursor:pointer}
   main{flex:1;display:flex;flex-direction:column;gap:10px;padding:12px 14px;overflow:hidden}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;min-height:0}
-  .row.inputs{flex:.85} .row.mid{flex:1.4}
+  .row.inputs{flex:.62} .row.mid{flex:1.9}
   .pane{display:flex;flex-direction:column;min-height:0}
   .pane h2{font-size:14px;margin:0 0 6px;display:flex;align-items:center;gap:8px}
   .pane h2 .tag{font-weight:700}
@@ -64,7 +64,7 @@
   mark{border-radius:3px;padding:1px 2px}
   mark.yy{background:#1d4d2e;color:#c9f7d5}
   mark.cus{background:#1b3358;color:#cfe0ff}
-  .out{flex:.75;display:flex;flex-direction:column;min-height:0}
+  .out{flex:.62;display:flex;flex-direction:column;min-height:0}
   footer{padding:9px 14px;border-top:1px solid var(--line);background:#0b0e11;
          color:var(--dim);font-size:14px}
   footer.warn{color:#ffd479} footer.ok{color:#7ee2a0}
@@ -80,6 +80,7 @@
   <h1>UDトーク × YYprobe 修正補助</h1>
   <label class="chk"><input type="checkbox" id="autoChk" checked>自動で比較</label>
   <label class="chk"><input type="checkbox" id="punctChk" checked>句読点の違いは無視</label>
+  <label class="chk"><input type="checkbox" id="minorChk">言い回しの差も表示</label>
   <span class="spacer"></span>
   <button id="sampleBtn">サンプル読込</button>
   <button id="smallBtn">小さく －</button>
@@ -242,6 +243,14 @@ function applyChoices(ud, changes){
   return {text: out, spans};
 }
 
+/* 重要な差分かどうか。
+   実データで検証したところ、30秒で19箇所も出た。その多くは「ね、」「って」
+   「と思うんですけど」のような言い回し・助詞の差で、UDが拾いきれなかっただけの箇所。
+   一方で直すべきなのは「車学習者→手話学習者」「送り歯→コクリハ」のような
+   語そのものの誤り。漢字・カタカナ・数字・英字を含むかどうかで振り分ける。 */
+const KANA_ONLY = /^[\u3040-\u309F\u30FC、。，．・…「」『』（）()？！?!\s]*$/;
+function isMinor(c){ return KANA_ONLY.test(c.ud) && KANA_ONLY.test(c.yy); }
+
 /* ---------------- 練習用サンプル ---------------- */
 const SAMPLES = [
   {title:"他者発話の聞き違い（同音異義）",
@@ -274,7 +283,7 @@ const SAMPLES = [
 const $ = id => document.getElementById(id);
 const udEl = $("ud"), yyEl = $("yy"), outEl = $("out");
 const listEl = $("list"), prevEl = $("preview"), statusEl = $("status");
-const autoChk = $("autoChk"), punctChk = $("punctChk");
+const autoChk = $("autoChk"), punctChk = $("punctChk"), minorChk = $("minorChk");
 let result = null, sampleIdx = 0, fontSize = 17, timer = null;
 
 const esc = s => s.replace(/[&<>]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
@@ -306,7 +315,17 @@ function buildList(){
     listEl.appendChild(d);
     return;
   }
+  const showMinor = minorChk.checked;
+  const hidden = result.changes.filter(c => isMinor(c) && !showMinor).length;
+  if (hidden){
+    const n = document.createElement("div");
+    n.className = "empty";
+    n.textContent = `言い回しの差 ${hidden} 件は非表示（YY側を採用して結果に反映済み）。` +
+                    `上の「言い回しの差も表示」で確認できます。`;
+    listEl.appendChild(n);
+  }
   result.changes.forEach(c => {
+    if (isMinor(c) && !showMinor) return;
     const row = document.createElement("div");
     row.className = "chg";
 
@@ -370,7 +389,12 @@ function render(){
   else if (!hasYy) setStatus("YYprobe のテキストを右に貼り付けてください", "warn");
   else if (!hasUd) setStatus("UDトークのテキストを左に貼り付けてください", "warn");
   else if (n === 0) setStatus("✓ 食い違いなし。UDトークのままで大丈夫です。", "ok");
-  else setStatus(`食い違い ${n} 箇所　→　UD採用 ${cnt.ud}／YY採用 ${cnt.yy}／自分で入力 ${cnt.custom}　（一致率 ${(result.similarity * 100).toFixed(1)}%）`);
+  else {
+    const minor = result.changes.filter(isMinor).length;
+    setStatus(`食い違い ${n} 箇所（要判断 ${n - minor}／言い回し ${minor}）　→　` +
+              `UD採用 ${cnt.ud}／YY採用 ${cnt.yy}／自分で入力 ${cnt.custom}　` +
+              `（一致率 ${(result.similarity * 100).toFixed(1)}%）`);
+  }
 }
 
 function runCompare(){
@@ -391,6 +415,7 @@ function schedule(){
 udEl.addEventListener("input", schedule);
 yyEl.addEventListener("input", schedule);
 punctChk.addEventListener("change", runCompare);
+minorChk.addEventListener("change", () => { buildList(); render(); });
 
 document.querySelectorAll("[data-clear]").forEach(b =>
   b.addEventListener("click", () => { $(b.dataset.clear).value = ""; runCompare(); }));

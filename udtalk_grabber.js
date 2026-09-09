@@ -20,7 +20,12 @@
   }
 
   function lines() {
-    var a = [].slice.call(document.querySelectorAll('.v-list-item__subtitle'));
+    var a = [].slice.call(document.querySelectorAll('.v-list-item__subtitle')).filter(function (e) {
+      // 話者名・時刻の見出しと同じ内容の要素は本文ではないので除く
+      var item = e.closest('.v-list-item');
+      var head = item && item.querySelector('.v-list-item__title');
+      return !(head && head.textContent.indexOf(e.textContent.trim()) >= 0);
+    });
     if (!a.length) {
       a = [].slice.call(document.querySelectorAll('div,p,li')).filter(function (e) {
         return e.querySelector('ruby') && !e.querySelector('div');
