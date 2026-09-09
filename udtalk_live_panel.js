@@ -232,13 +232,8 @@
   var yyManual = false;
   yyBox.addEventListener('input', function () {
     yyManual = true;
-    if (live) setLive(false);
     clearTimeout(timer);
-    timer = setTimeout(function () {
-      result = compare(selText || '', yyBox.value);
-      result.ratio = 1;
-      render();
-    }, 200);
+    timer = setTimeout(function () { recompare(true); }, 200);
   });
   p.appendChild(yyBox);
 
@@ -296,7 +291,13 @@
   function refresh(force) {
     if (!live && !force) return;
     var n = parseInt(nSel.value, 10);
-    var next = udLines().slice(-n);
+    var all = udLines();
+    var next = all.slice(-n);
+    // 選んだ発話が直近N件から流れ出ても、一覧に残して選択を保つ。
+    // （直している途中に対象が消えると作業がやり直しになる）
+    if (selText && next.indexOf(selText) < 0 && all.indexOf(selText) >= 0) {
+      next = [selText].concat(next);
+    }
     if (!force && next.join('␟') === udItems.join('␟')) return;
     udItems = next;
     if (selText === null || udItems.indexOf(selText) < 0) {
@@ -307,24 +308,37 @@
 
   function yyText() { return yyLines ? yyLines.join('\n') : ''; }
 
-  function recompare() {
+  var lastSig = null;
+  function recompare(force) {
+    if (!selText) { result = null; lastSig = null; render(); return; }
+
+    // この発話に対応するYY側の文字列を決める（手入力があればそれを優先）
+    var yyWin, ratio;
+    if (yyManual && yyBox.value.trim()) {
+      yyWin = yyBox.value; ratio = 1;
+    } else {
+      var wins = alignAll(udItems, yyText());
+      var al = wins[udItems.indexOf(selText)] || { text: '', ratio: 0 };
+      yyWin = al.text; ratio = al.ratio;
+    }
+
+    // 比較の中身が前と同じなら作り直さない。作り直すと選んだ内容が消えるため。
+    // ✎ に入力している最中も触らない。
+    var sig = selText + '␟' + yyWin;
+    if (!force) {
+      if (sig === lastSig) { renderUdList(); return; }
+      if (listWrap.contains(document.activeElement)) { renderUdList(); return; }
+    }
+
     var prev = {};
     if (result) {
       result.changes.forEach(function (c) {
         prev[c.ud + '␟' + c.yy] = { choice: c.choice, custom: c.custom };
       });
     }
-    if (!selText) { result = null; render(); return; }
-    if (yyManual && yyBox.value.trim()) {
-      result = compare(selText, yyBox.value);
-      result.ratio = 1;
-      render();
-      return;
-    }
-    var wins = alignAll(udItems, yyText());
-    var al = wins[udItems.indexOf(selText)] || { text: '', ratio: 0 };
-    result = al.text ? compare(selText, al.text) : { ud: selText, yy: '', changes: [] };
-    result.ratio = al.ratio;
+    lastSig = sig;
+    result = yyWin ? compare(selText, yyWin) : { ud: selText, yy: '', changes: [] };
+    result.ratio = ratio;
     result.changes.forEach(function (c) {
       var q = prev[c.ud + '␟' + c.yy];
       if (q) { c.choice = q.choice; c.custom = q.custom; }
@@ -332,8 +346,8 @@
     render();
   }
 
-  function render() {
-    /* ① 発話一覧 */
+  function renderUdList() {
+    var atBottom = udList.scrollHeight - udList.scrollTop - udList.clientHeight < 24;
     udList.innerHTML = '';
     if (!udItems.length) {
       udList.appendChild(el('div', 'color:#93a2b1;font-size:12px;padding:4px', '字幕を待っています'));
@@ -344,14 +358,18 @@
         'font-size:' + fs + 'px;line-height:1.5;' +
         (on ? 'background:#4a3410;border:1px solid #e8a33d' : 'border:1px solid transparent'), t);
       row.onclick = function () {
+        // 止めない。選んだ発話は流れても固定されるので、裏では取り込みを続ける。
         selText = t;
         yyManual = false;
-        if (live) setLive(false);
-        recompare();
-        stat.textContent = '固定しました（決定すると自動に戻ります）';
+        recompare(true);
       };
       udList.appendChild(row);
     });
+    if (atBottom) udList.scrollTop = udList.scrollHeight;
+  }
+
+  function render() {
+    renderUdList();
 
     /* ② 対応するYY */
     if (!yyManual) {
@@ -376,11 +394,7 @@
             'color:#e9edf1;cursor:pointer');
           b.appendChild(el('span', 'display:block;font-size:10px;color:#93a2b1', who));
           b.appendChild(document.createTextNode(text || empty));
-          b.onclick = function () {
-            c.choice = kind;
-            if (live) setLive(false);
-            render();
-          };
+          b.onclick = function () { c.choice = kind; render(); };
           if (c.choice === kind) {
             b.style.borderColor = kind === 'ud' ? '#e8a33d' : '#5fb37a';
             b.style.background = kind === 'ud' ? '#4a3410' : '#14432a';
@@ -392,7 +406,6 @@
         var ed = btn('✎', function () {
           if (!c.custom) c.custom = c.yy || c.ud;
           c.choice = 'custom';
-          if (live) setLive(false);
           render();
           var i2 = listWrap.querySelector('input[data-i="' + c.index + '"]');
           if (i2) { i2.focus(); i2.select(); }
