@@ -293,17 +293,29 @@
     var t = yyLines.slice(-n).join('\n');
     if (t !== yyBox.value) { yyBox.value = t; recompare(); }
   }
-  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+  /* 拡張機能を更新すると古いページは接続を失う。触ると例外になるので包んでおく。 */
+  function extAlive() {
+    try {
+      return typeof chrome !== 'undefined' && chrome.runtime && !!chrome.runtime.id &&
+             chrome.storage && !!chrome.storage.local;
+    } catch (e) { return false; }
+  }
+  if (extAlive()) {
     yyLabel.textContent = 'YYprobe（自動受信）';
-    chrome.storage.local.get('udyy_yy', function (o) {
-      if (o && o.udyy_yy) { yyLines = o.udyy_yy.lines; applyYY(); }
-    });
-    chrome.storage.onChanged.addListener(function (ch, area) {
-      if (area === 'local' && ch.udyy_yy && ch.udyy_yy.newValue) {
-        yyLines = ch.udyy_yy.newValue.lines;
-        applyYY();
-      }
-    });
+    try {
+      chrome.storage.local.get('udyy_yy', function (o) {
+        if (o && o.udyy_yy) { yyLines = o.udyy_yy.lines; applyYY(); }
+      });
+      chrome.storage.onChanged.addListener(function (ch, area) {
+        if (area === 'local' && ch.udyy_yy && ch.udyy_yy.newValue) {
+          yyLines = ch.udyy_yy.newValue.lines;
+          applyYY();
+        }
+      });
+    } catch (e) {
+      yyLabel.textContent = 'YYprobe（自動受信が切れています。ページを再読み込みしてください）';
+      yyLabel.style.color = '#ffd479';
+    }
   }
 
   /* 字幕の追加を監視して自動更新 */
