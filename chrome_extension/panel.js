@@ -1,20 +1,22 @@
 /* 自動生成。udtalk_live_panel.js を編集して build_extension.command を実行すること。 */
 function __udyyRun() {
-/* UDトーク「ウェブで公開」ページ（live.udtalk.jp）に、
-   UD × YY 比較パネルをそのまま重ねて表示するブックマークレット。
+/* UDトーク「ウェブで公開」ページに、YYprobe との比較パネルを重ねる。
 
-   ローカルのHTMLからは他サイトの中身を読めない（同一生成元ポリシー）ため、
-   リアルタイムに UD の字幕を取り込むにはページ側で動かす必要がある。
+   ■ 設計の要点：UDトークは「1発話ずつ」編集する
+   UDとYYでは発話の区切りがまるで違う（UDは細かく切れ、YYは長くつながる）。
+   複数発話をつなげて直すと、貼り付けたときに前後の発話まで入り込んで重複する。
+   そこで「直す発話を1つ選ぶ → その発話に対応するYYの箇所を自動で切り出す →
+   その発話だけを直す」形にしている。コピーされるのは常に1発話ぶんだけ。
 
-   - UD側：ページの字幕を自動で追跡（MutationObserver）。喋るたびに更新される
-   - YY側：手で貼り付ける
-   - 判断中に UD が更新されると作業が飛ぶので「固定」で止められる */
+   ■ 取り込み
+   UD側：このページのDOMを監視（ルビ・途中経過を除去）
+   YY側：YYの配信ページに入れた yy.js が chrome.storage 経由で送ってくる */
 (function () {
   var ID = 'udyy-live';
   var old = document.getElementById(ID);
   if (old) { old.remove(); return; }
 
-  /* ---------- 差分ロジック（uy_corrector.html と同じ） ---------- */
+  /* ============ 差分ロジック ============ */
   var IGNORE_PUNCT = new Set("、。，．,.！？!?…‥・「」『』（）()〈〉《》【】〔〕”“\"'‘’；;：:".split(""));
   var KANA_ONLY = /^[぀-ゟー、。，．・…「」『』（）()？！?!\s]*$/;
 
@@ -32,18 +34,23 @@ function __udyyRun() {
     return { s: chars.join(''), origin: origin };
   }
 
+  function buildDp(a, b) {
+    var n = a.length, m = b.length, w = m + 1;
+    var dp = new Uint32Array((n + 1) * w), i, j;
+    for (i = n - 1; i >= 0; i--)
+      for (j = m - 1; j >= 0; j--)
+        dp[i * w + j] = a[i] === b[j] ? dp[(i + 1) * w + j + 1] + 1
+          : Math.max(dp[(i + 1) * w + j], dp[i * w + j + 1]);
+    return dp;
+  }
+
   function rawOpcodes(a, b) {
     var n = a.length, m = b.length;
     if (!n && !m) return [];
     if (!n) return [[0, 0, 0, m]];
     if (!m) return [[0, n, 0, 0]];
-    var w = m + 1, dp = new Uint32Array((n + 1) * w), i, j;
-    for (i = n - 1; i >= 0; i--)
-      for (j = m - 1; j >= 0; j--)
-        dp[i * w + j] = a[i] === b[j] ? dp[(i + 1) * w + j + 1] + 1
-          : Math.max(dp[(i + 1) * w + j], dp[i * w + j + 1]);
-    var ops = [], si = 0, sj = 0, inD = false;
-    i = 0; j = 0;
+    var w = m + 1, dp = buildDp(a, b);
+    var ops = [], i = 0, j = 0, si = 0, sj = 0, inD = false;
     function close() { if (inD) { ops.push([si, i, sj, j]); inD = false; } }
     while (i < n && j < m) {
       if (a[i] === b[j]) { close(); i++; j++; }
@@ -63,9 +70,64 @@ function __udyyRun() {
     return [s, Math.max(s, e)];
   }
 
+  /* UD発話それぞれに対応するYY側の範囲を切り出す。
+
+     発話ごとに個別に探すと範囲が前後へはみ出し、隣の発話ぶんまで拾ってしまう
+     （＝貼り付けたときに文が重複する原因）。UDもYYも時系列なので、
+     全発話をまとめて対応付け、境界で切り分けて重ならないようにする。 */
+  function alignAll(items, yy) {
+    var out = items.map(function () { return { text: '', ratio: 0 }; });
+    if (!items.length || !yy) return out;
+
+    var udAll = items.join('');
+    var A = fold(udAll), B = fold(yy);
+    if (!A.s.length || !B.s.length) return out;
+    if (A.s.length * B.s.length > 4000000) return out;
+
+    // 原文の位置 → 正規化後の位置（無視された文字は次の位置に寄せる）
+    var o2f = new Int32Array(udAll.length + 1).fill(-1);
+    for (var k = 0; k < A.origin.length; k++) {
+      if (o2f[A.origin[k]] < 0) o2f[A.origin[k]] = k;
+    }
+    var nextv = A.s.length;
+    for (var q = udAll.length; q >= 0; q--) {
+      if (o2f[q] < 0) o2f[q] = nextv; else nextv = o2f[q];
+    }
+
+    // UDの各文字が、YYのどこに対応するか（単調増加）
+    var a = A.s, b = B.s, n = a.length, m = b.length, w = m + 1;
+    var dp = buildDp(a, b);
+    var mapI = new Int32Array(n + 1).fill(-1);
+    var matchedAt = new Uint8Array(n);
+    var i = 0, j = 0;
+    while (i < n && j < m) {
+      if (mapI[i] < 0) mapI[i] = j;
+      if (a[i] === b[j]) { matchedAt[i] = 1; i++; j++; }
+      else if (dp[(i + 1) * w + j] >= dp[i * w + j + 1]) i++;
+      else j++;
+    }
+    while (i <= n) { if (mapI[i] < 0) mapI[i] = j; i++; }
+
+    // 発話ごとに範囲を割り当てる
+    var pos = 0;
+    items.forEach(function (t, idx) {
+      var fs2 = o2f[pos], fe = o2f[pos + t.length];
+      pos += t.length;
+      if (fe <= fs2) return;
+      var j1 = mapI[fs2], j2 = mapI[fe];
+      if (j2 < j1) j2 = j1;
+      var s1 = j1 < B.origin.length ? B.origin[j1] : yy.length;
+      var s2 = j2 < B.origin.length ? B.origin[j2] : yy.length;
+      var hit = 0;
+      for (var z = fs2; z < fe; z++) if (matchedAt[z]) hit++;
+      out[idx] = { text: yy.slice(s1, Math.max(s1, s2)), ratio: hit / (fe - fs2) };
+    });
+    return out;
+  }
+
   function compare(ud, yy) {
     var A = fold(ud), B = fold(yy);
-    if (A.s.length * B.s.length > 4000000) return { ud: ud, yy: yy, changes: [], tooLong: true };
+    if (A.s.length * B.s.length > 4000000) return { ud: ud, yy: yy, changes: [] };
     var ops = [], raw = rawOpcodes(A.s, B.s);
     raw.forEach(function (o) {
       var p = ops[ops.length - 1];
@@ -84,27 +146,27 @@ function __udyyRun() {
   }
 
   function applyChoices(ud, changes) {
-    var out = '', cursor = 0, spans = [];
+    var out = '', cursor = 0;
     changes.slice().sort(function (a, b) { return a.udStart - b.udStart; }).forEach(function (c) {
       if (c.udStart < cursor || c.choice === 'ud') return;
-      var t = c.choice === 'custom' ? c.custom : c.yy;
       out += ud.slice(cursor, c.udStart);
-      var st = out.length;
-      out += t;
-      if (t) spans.push([st, out.length, c.choice]);
+      out += (c.choice === 'custom' ? c.custom : c.yy);
       cursor = c.udEnd;
     });
-    out += ud.slice(cursor);
-    return { text: out, spans: spans };
+    return out + ud.slice(cursor);
   }
 
   function isMinor(c) { return KANA_ONLY.test(c.ud) && KANA_ONLY.test(c.yy); }
 
-  /* ---------- ページから UD の字幕を取り出す ---------- */
+  /* 検証用の入口。挙動には影響しないが、実ページ上で
+     alignYY / compare の結果を確かめられるようにしておく。 */
+  try { window.__udyyDebug = { alignAll: alignAll, compare: compare, fold: fold }; } catch (e) { }
+
+  /* ============ ページからの取り込み ============ */
   function clean(el) {
     var c = el.cloneNode(true);
     c.querySelectorAll('rt,rp').forEach(function (n) { n.remove(); });
-    c.querySelectorAll('br').forEach(function (n) { n.replaceWith('\n'); });
+    c.querySelectorAll('br').forEach(function (n) { n.replaceWith(' '); });
     return c.textContent.replace(/[ \t]+/g, ' ').trim();
   }
 
@@ -117,16 +179,9 @@ function __udyyRun() {
     return a.map(clean).filter(function (t) { return t && !/^[.．…・\s]+$/.test(t); });
   }
 
-  /* ---------- 画面 ---------- */
-  var css = 'all:initial;font-family:"Hiragino Sans",sans-serif;';
-  var p = document.createElement('div');
-  p.id = ID;
-  /* 高さを固定する。中身が増えても外形とボタン位置が動かないようにして、
-     コピー操作中に的が移動しないようにしている。増減は候補リストの中で吸収する。 */
-  p.style.cssText = 'position:fixed;right:14px;bottom:14px;width:460px;' +
-    'height:min(620px,84vh);display:flex;flex-direction:column;overflow:hidden;' +
-    'z-index:2147483647;background:#12161b;color:#e9edf1;font:13px/1.6 "Hiragino Sans",sans-serif;' +
-    'padding:10px;border-radius:12px;border:1px solid #4a545e;box-shadow:0 10px 30px rgba(0,0,0,.6)';
+  /* ============ 画面 ============ */
+  var fs = 15, full = false, live = true;
+  var udItems = [], selText = null, yyLines = null, result = null, timer = null;
 
   function el(tag, style, text) {
     var e = document.createElement(tag);
@@ -140,267 +195,298 @@ function __udyyRun() {
     b.onclick = fn;
     return b;
   }
+  function label(text, color) {
+    return el('div', 'flex:0 0 auto;font-size:11px;margin:0 0 3px;color:' + (color || '#93a2b1'), text);
+  }
+
+  var p = el('div', '');
+  p.id = ID;
 
   var head = el('div', 'flex:0 0 auto;display:flex;gap:6px;align-items:center;margin-bottom:8px;cursor:move');
   head.appendChild(el('b', 'flex:1;font-size:13px', 'UD × YY ライブ比較'));
 
-  var live = true;
-  function setLive(on, why) {
-    live = on;
-    liveBtn.textContent = '自動取得: ' + (live ? 'ON' : '固定');
-    liveBtn.style.background = live ? '#1d4d2e' : '#5a3a12';
-    liveBtn.style.borderColor = live ? '#3c9a59' : '#c08a3e';
-    if (live) { refreshUd(); applyYY(); }
-    if (why) stat.textContent = why;
-  }
-  var liveBtn = btn('自動取得: ON', function () { setLive(!live); },
-    'background:#1d4d2e;border-color:#3c9a59');
+  var liveBtn = btn('自動取得: ON', function () { setLive(!live); }, 'background:#1d4d2e;border-color:#3c9a59');
   head.appendChild(liveBtn);
-
   var nSel = el('select', 'font:13px sans-serif;padding:4px;border-radius:6px;background:#232c35;color:#e9edf1;border:1px solid #5a656f');
-  [['1', '最新1件'], ['2', '最新2件'], ['3', '最新3件'], ['5', '最新5件']].forEach(function (o) {
+  [['3', '直近3件'], ['5', '直近5件'], ['8', '直近8件']].forEach(function (o) {
     var op = el('option', '', o[1]); op.value = o[0]; nSel.appendChild(op);
   });
-  nSel.value = '2';
-  nSel.onchange = function () { refreshUd(); applyYY(); };
+  nSel.value = '5';
+  nSel.onchange = function () { refresh(true); };
   head.appendChild(nSel);
   var fullBtn = btn('全画面', function () { setFull(!full); });
   head.appendChild(fullBtn);
   head.appendChild(btn('×', function () { obs.disconnect(); p.remove(); }));
-
-  /* 全画面：ブラウザいっぱいに広げ、文字も大きくする。
-     通常時は高さ固定の小窓、全画面時は各欄を比率で伸ばす。 */
-  function setFull(on) {
-    full = on;
-    fullBtn.textContent = full ? '小さく' : '全画面';
-    fs = full ? 21 : 15;
-    if (full) {
-      p.style.right = '0'; p.style.bottom = '0'; p.style.left = '0'; p.style.top = '0';
-      p.style.width = 'auto'; p.style.height = 'auto';
-      p.style.borderRadius = '0'; p.style.padding = '16px 20px';
-      udBox.style.flex = '1 1 0'; udBox.style.height = 'auto';
-      yyBox.style.flex = '1 1 0'; yyBox.style.height = 'auto';
-      listWrap.style.flex = '2 1 0';
-      outBox.style.flex = '1 1 0'; outBox.style.height = 'auto';
-    } else {
-      p.style.right = '14px'; p.style.bottom = '14px'; p.style.left = 'auto'; p.style.top = 'auto';
-      p.style.width = '460px'; p.style.height = 'min(620px,84vh)';
-      p.style.borderRadius = '12px'; p.style.padding = '10px';
-      udBox.style.flex = '0 0 auto'; udBox.style.height = '76px';
-      yyBox.style.flex = '0 0 auto'; yyBox.style.height = '66px';
-      listWrap.style.flex = '1 1 auto';
-      outBox.style.flex = '0 0 auto'; outBox.style.height = '84px';
-    }
-    [udBox, yyBox, outBox].forEach(function (e) { e.style.fontSize = fs + 'px'; });
-    render();
-  }
   p.appendChild(head);
 
-  var udBox = el('div', 'flex:0 0 auto;background:#0c1015;border:1px solid #e8a33d55;border-radius:8px;' +
-    'padding:7px 9px;font-size:15px;white-space:pre-wrap;height:76px;overflow:auto;margin-bottom:6px');
-  p.appendChild(el('div', 'flex:0 0 auto;font-size:11px;color:#e8a33d;margin-bottom:3px', 'UDトーク（自動取得）'));
-  p.appendChild(udBox);
+  p.appendChild(label('① 直す発話を選ぶ（UDトーク）', '#e8a33d'));
+  var udList = el('div', 'flex:1 1 0;min-height:64px;overflow-y:auto;margin-bottom:7px;' +
+    'border:1px solid #e8a33d55;border-radius:8px;padding:5px;background:#0c1015');
+  p.appendChild(udList);
 
-  var yyLabel = el('div', 'flex:0 0 auto;font-size:11px;color:#5fb37a;margin-bottom:3px', 'YYprobe（ここに貼り付け ⌘V）');
+  var yyLabel = label('② 対応するYYprobeの箇所（自動）', '#5fb37a');
   p.appendChild(yyLabel);
-  var yyBox = el('textarea', 'flex:0 0 auto;width:100%;height:66px;background:#0c1015;color:#e9edf1;border:1px solid #5fb37a55;' +
-    'border-radius:8px;padding:7px 9px;font:15px/1.6 "Hiragino Sans",sans-serif;resize:none;margin-bottom:6px');
-  yyBox.placeholder = 'YYprobe のテキストを貼り付け';
+  /* 自動で埋まるが、手で書き換えることもできる（拡張機能が使えないときの逃げ道）。
+     手を入れた場合は、その内容をそのままこの発話に対応するYYとして扱う。 */
+  var yyBox = el('textarea', 'flex:0 0 auto;height:64px;background:#0c1015;color:#e9edf1;' +
+    'border:1px solid #5fb37a55;border-radius:8px;padding:6px 9px;resize:none;margin-bottom:7px;' +
+    'font:15px/1.6 "Hiragino Sans",sans-serif;width:100%');
+  var yyManual = false;
+  yyBox.addEventListener('input', function () {
+    yyManual = true;
+    if (live) setLive(false);
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      result = compare(selText || '', yyBox.value);
+      result.ratio = 1;
+      render();
+    }, 200);
+  });
   p.appendChild(yyBox);
 
-  var listWrap = el('div', 'flex:1 1 auto;min-height:70px;overflow-y:auto;margin-bottom:6px');
+  p.appendChild(label('③ 食い違いを選ぶ'));
+  var listWrap = el('div', 'flex:1.4 1 0;min-height:70px;overflow-y:auto;margin-bottom:7px');
   p.appendChild(listWrap);
 
-  p.appendChild(el('div', 'flex:0 0 auto;font-size:11px;color:#93a2b1;margin-bottom:3px', '最終テキスト（直接書き換え可）'));
-  var outBox = el('textarea', 'flex:0 0 auto;width:100%;height:84px;background:#0c1015;color:#e9edf1;' +
-    'border:1px solid #5a656f;border-radius:8px;padding:7px 9px;' +
-    'font:15px/1.6 "Hiragino Sans",sans-serif;resize:none');
+  p.appendChild(label('④ この発話の直した文（これだけをUDトークに貼る）'));
+  var outBox = el('textarea', '');
   p.appendChild(outBox);
 
   var foot = el('div', 'flex:0 0 auto;display:flex;gap:6px;align-items:center;margin-top:7px');
   foot.appendChild(btn('決定してコピー', decide, 'background:#2e7d46;border-color:#3c9a59;font-weight:700'));
   var showMinor = false;
-  var minorBtn = btn('言い回しも表示', function () { showMinor = !showMinor; minorBtn.style.background = showMinor ? '#1b3358' : '#232c35'; render(); });
+  var minorBtn = btn('言い回しも表示', function () {
+    showMinor = !showMinor;
+    minorBtn.style.background = showMinor ? '#1b3358' : '#232c35';
+    render();
+  });
   foot.appendChild(minorBtn);
   var stat = el('div', 'flex:1;font-size:11px;color:#93a2b1;text-align:right');
   foot.appendChild(stat);
   p.appendChild(foot);
-
   document.body.appendChild(p);
 
-  /* ---------- 動き ---------- */
-  var udText = '', result = null, timer = null;
-  var fs = 15;          // 本文の文字サイズ。全画面では大きくする
-  var full = false;
+  function setFull(on) {
+    full = on;
+    fullBtn.textContent = full ? '小さく' : '全画面';
+    fs = full ? 20 : 15;
+    var base = 'position:fixed;z-index:2147483647;background:#12161b;color:#e9edf1;' +
+      'font:13px/1.6 "Hiragino Sans",sans-serif;display:flex;flex-direction:column;overflow:hidden;' +
+      'border:1px solid #4a545e;box-shadow:0 10px 30px rgba(0,0,0,.6);';
+    p.style.cssText = base + (full
+      ? 'inset:0;border-radius:0;padding:16px 20px;'
+      : 'right:14px;bottom:14px;width:470px;height:min(640px,86vh);border-radius:12px;padding:10px;');
+    udList.style.fontSize = fs + 'px';
+    yyBox.style.font = fs + 'px/1.6 "Hiragino Sans",sans-serif';
+    yyBox.style.height = (full ? 92 : 64) + 'px';
+    outBox.style.cssText = 'flex:0 0 auto;width:100%;height:' + (full ? '110px' : '78px') +
+      ';background:#0c1015;color:#e9edf1;border:1px solid #5a656f;border-radius:8px;padding:7px 9px;' +
+      'font:' + fs + 'px/1.6 "Hiragino Sans",sans-serif;resize:none';
+    render();
+  }
 
-  function refreshUd() {
-    if (!live) return;
-    var a = udLines();
+  function setLive(on, why) {
+    live = on;
+    liveBtn.textContent = '自動取得: ' + (live ? 'ON' : '固定');
+    liveBtn.style.background = live ? '#1d4d2e' : '#5a3a12';
+    liveBtn.style.borderColor = live ? '#3c9a59' : '#c08a3e';
+    if (live) refresh(true);
+    if (why) stat.textContent = why;
+  }
+
+  /* ============ データの流れ ============ */
+  function refresh(force) {
+    if (!live && !force) return;
     var n = parseInt(nSel.value, 10);
-    var t = a.slice(-n).join('\n');
-    // MutationObserver は時刻表示やスクロールでも動く。中身が同じなら作り直さない
-    // （作り直すと選択がリセットされてしまうため）
-    if (t === udText && result) return;
-    udText = t;
-    udBox.textContent = udText || '（まだ字幕がありません）';
+    var next = udLines().slice(-n);
+    if (!force && next.join('␟') === udItems.join('␟')) return;
+    udItems = next;
+    if (selText === null || udItems.indexOf(selText) < 0) {
+      selText = udItems.length ? udItems[udItems.length - 1] : null;
+    }
     recompare();
   }
 
+  function yyText() { return yyLines ? yyLines.join('\n') : ''; }
+
   function recompare() {
-    // 直前の選択を「UD側の語＋YY側の語」で覚えておき、作り直したあとに戻す。
-    // これがないと、字幕が届くたびに UD を選んだ判断が消えてしまう。
     var prev = {};
     if (result) {
       result.changes.forEach(function (c) {
-        prev[c.ud + '\u241F' + c.yy] = { choice: c.choice, custom: c.custom };
+        prev[c.ud + '␟' + c.yy] = { choice: c.choice, custom: c.custom };
       });
     }
-    result = yyBox.value.trim() ? compare(udText, yyBox.value)
-      : { ud: udText, yy: '', changes: [] };
+    if (!selText) { result = null; render(); return; }
+    if (yyManual && yyBox.value.trim()) {
+      result = compare(selText, yyBox.value);
+      result.ratio = 1;
+      render();
+      return;
+    }
+    var wins = alignAll(udItems, yyText());
+    var al = wins[udItems.indexOf(selText)] || { text: '', ratio: 0 };
+    result = al.text ? compare(selText, al.text) : { ud: selText, yy: '', changes: [] };
+    result.ratio = al.ratio;
     result.changes.forEach(function (c) {
-      var p = prev[c.ud + '\u241F' + c.yy];
-      if (p) { c.choice = p.choice; c.custom = p.custom; }
+      var q = prev[c.ud + '␟' + c.yy];
+      if (q) { c.choice = q.choice; c.custom = q.custom; }
     });
     render();
   }
 
   function render() {
-    listWrap.innerHTML = '';
-    if (!result) return;
-    var shown = 0, minor = 0;
-    result.changes.forEach(function (c) {
-      if (isMinor(c)) { minor++; if (!showMinor) return; }
-      shown++;
-      var row = el('div', 'border:1px solid #39424b;border-radius:8px;padding:6px;margin-bottom:5px;background:#171d24;display:flex;gap:6px;align-items:stretch');
-      row.appendChild(el('div', 'font-size:11px;color:#93a2b1;display:flex;align-items:center', String(c.index)));
-      function opt(kind, who, text, empty) {
-        var b = el('button', 'flex:1;text-align:left;font:' + fs + 'px "Hiragino Sans",sans-serif;padding:5px 8px;' +
-          'border-radius:6px;border:1px solid #4a545e;background:#1d242c;color:#e9edf1;cursor:pointer');
-        b.appendChild(el('span', 'display:block;font-size:10px;color:#93a2b1', who));
-        b.appendChild(document.createTextNode(text || empty));
-        b.onclick = function () {
-          // 選び始めたら自動取得を止める。止めないと次の発話が届いた時点で
-          // 表示範囲がずれ、選んだ対象そのものが消えてしまう。
-          var wasLive = live;
-          c.choice = kind;
-          if (wasLive) setLive(false);
-          render();
-          if (wasLive) stat.textContent = '固定しました（決定すると自動に戻ります）';
-        };
-        if (c.choice === kind) {
-          b.style.borderColor = kind === 'ud' ? '#e8a33d' : '#5fb37a';
-          b.style.background = kind === 'ud' ? '#4a3410' : '#14432a';
-        }
-        return b;
-      }
-      row.appendChild(opt('ud', 'UDトーク', c.ud, '（入れない）'));
-      row.appendChild(opt('yy', 'YYprobe', c.yy, '（削除する）'));
-      var ed = btn('✎', function () {
-        if (!c.custom) c.custom = c.yy || c.ud;
-        c.choice = 'custom';
+    /* ① 発話一覧 */
+    udList.innerHTML = '';
+    if (!udItems.length) {
+      udList.appendChild(el('div', 'color:#93a2b1;font-size:12px;padding:4px', '字幕を待っています'));
+    }
+    udItems.forEach(function (t) {
+      var on = t === selText;
+      var row = el('div', 'padding:5px 7px;margin:2px 0;border-radius:6px;cursor:pointer;' +
+        'font-size:' + fs + 'px;line-height:1.5;' +
+        (on ? 'background:#4a3410;border:1px solid #e8a33d' : 'border:1px solid transparent'), t);
+      row.onclick = function () {
+        selText = t;
+        yyManual = false;
         if (live) setLive(false);
-        render();
-        var inp = row.parentElement.querySelector('input[data-i="' + c.index + '"]');
-        if (inp) { inp.focus(); inp.select(); }
-      });
-      if (c.choice === 'custom') { ed.style.borderColor = '#7aa9ff'; ed.style.background = '#1b3358'; }
-      row.appendChild(ed);
-      listWrap.appendChild(row);
-      if (c.choice === 'custom') {
-        var inp = el('input', 'width:100%;margin:-2px 0 6px;padding:6px 8px;border-radius:6px;border:1px solid #7aa9ff;' +
-          'background:#0d1622;color:#e9edf1;font:' + fs + 'px "Hiragino Sans",sans-serif');
-        inp.value = c.custom; inp.setAttribute('data-i', c.index);
-        inp.oninput = function () { c.custom = inp.value; paint(); };
-        listWrap.appendChild(inp);
-      }
+        recompare();
+        stat.textContent = '固定しました（決定すると自動に戻ります）';
+      };
+      udList.appendChild(row);
     });
-    if (!result.changes.length) {
-      listWrap.appendChild(el('div', 'font-size:12px;color:#93a2b1;padding:4px',
-        yyBox.value.trim() ? '食い違いはありません。' : 'YY側を貼り付けると候補が出ます。'));
-    } else if (!shown) {
-      listWrap.appendChild(el('div', 'font-size:12px;color:#93a2b1;padding:4px',
-        '言い回しの差 ' + minor + ' 件のみ（結果には反映済み）'));
+
+    /* ② 対応するYY */
+    if (!yyManual) {
+      yyBox.value = result && result.yy ? result.yy : '';
+      yyBox.placeholder = yyLines ? '（対応する箇所が見つかりません）'
+        : 'YYの配信ページを開くと自動で入ります。手で貼り付けることもできます。';
+    }
+
+    /* ③ 候補 */
+    listWrap.innerHTML = '';
+    var shown = 0, minor = 0;
+    if (result) {
+      result.changes.forEach(function (c) {
+        if (isMinor(c)) { minor++; if (!showMinor) return; }
+        shown++;
+        var row = el('div', 'border:1px solid #39424b;border-radius:8px;padding:6px;margin-bottom:5px;' +
+          'background:#171d24;display:flex;gap:6px;align-items:stretch');
+        row.appendChild(el('div', 'font-size:11px;color:#93a2b1;display:flex;align-items:center', String(c.index)));
+        function opt(kind, who, text, empty) {
+          var b = el('button', 'flex:1;text-align:left;font:' + fs + 'px "Hiragino Sans",sans-serif;' +
+            'padding:5px 8px;border-radius:6px;border:1px solid #4a545e;background:#1d242c;' +
+            'color:#e9edf1;cursor:pointer');
+          b.appendChild(el('span', 'display:block;font-size:10px;color:#93a2b1', who));
+          b.appendChild(document.createTextNode(text || empty));
+          b.onclick = function () {
+            c.choice = kind;
+            if (live) setLive(false);
+            render();
+          };
+          if (c.choice === kind) {
+            b.style.borderColor = kind === 'ud' ? '#e8a33d' : '#5fb37a';
+            b.style.background = kind === 'ud' ? '#4a3410' : '#14432a';
+          }
+          return b;
+        }
+        row.appendChild(opt('ud', 'UDトーク', c.ud, '（入れない）'));
+        row.appendChild(opt('yy', 'YYprobe', c.yy, '（削除する）'));
+        var ed = btn('✎', function () {
+          if (!c.custom) c.custom = c.yy || c.ud;
+          c.choice = 'custom';
+          if (live) setLive(false);
+          render();
+          var i2 = listWrap.querySelector('input[data-i="' + c.index + '"]');
+          if (i2) { i2.focus(); i2.select(); }
+        });
+        if (c.choice === 'custom') { ed.style.borderColor = '#7aa9ff'; ed.style.background = '#1b3358'; }
+        row.appendChild(ed);
+        listWrap.appendChild(row);
+        if (c.choice === 'custom') {
+          var inp = el('input', 'width:100%;margin:-2px 0 6px;padding:6px 8px;border-radius:6px;' +
+            'border:1px solid #7aa9ff;background:#0d1622;color:#e9edf1;' +
+            'font:' + fs + 'px "Hiragino Sans",sans-serif');
+          inp.value = c.custom; inp.setAttribute('data-i', c.index);
+          inp.oninput = function () { c.custom = inp.value; paint(); };
+          listWrap.appendChild(inp);
+        }
+      });
+      if (!result.changes.length) {
+        listWrap.appendChild(el('div', 'font-size:12px;color:#93a2b1;padding:4px',
+          result.yy ? 'この発話に食い違いはありません。' : 'YYの対応箇所がないため比較できません。'));
+      } else if (!shown) {
+        listWrap.appendChild(el('div', 'font-size:12px;color:#93a2b1;padding:4px',
+          '言い回しの差 ' + minor + ' 件のみ（結果には反映済み）'));
+      }
     }
     paint();
-    var need = result.changes.length - minor;
-    stat.textContent = result.changes.length
-      ? '要判断 ' + need + ' / 言い回し ' + minor
-      : (udText ? '' : '字幕待ち');
+    if (result) {
+      var need = result.changes.length - minor;
+      stat.textContent = '要判断 ' + need + ' / 言い回し ' + minor +
+        (result.ratio < 0.4 ? '　※YYとの対応が弱いです' : '');
+    }
   }
 
   function paint() {
-    var r = applyChoices(result.ud, result.changes);
-    outBox.value = r.text;
+    outBox.value = result ? applyChoices(result.ud, result.changes) : '';
   }
 
   function decide() {
     var t = outBox.value;
-    if (!t.trim()) { stat.textContent = 'コピーする内容なし'; return; }
+    if (!t.trim()) { stat.textContent = 'コピーする内容がありません'; return; }
     outBox.focus(); outBox.select();
     var ok = false;
     try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).catch(function () { });
-    var msg = ok ? '✓ コピーしました' : '選択済み。⌘C を押してください';
-    if (!live) { setLive(true); }          // 決定したら追従を再開する
+    var msg = ok ? '✓ この発話をコピーしました' : '選択済み。⌘C を押してください';
+    if (!live) setLive(true);
     stat.textContent = msg + '（自動取得を再開）';
   }
 
-  yyBox.addEventListener('input', function () {
-    clearTimeout(timer); timer = setTimeout(recompare, 200);
-  });
-
-  /* YY側を拡張機能のストレージから自動受信する
-     （YYの配信ページに入れた yy_reader.js が書き込んでいる） */
-  var yyLines = null;
-  function applyYY() {
-    if (!live || !yyLines) return;
-    var n = parseInt(nSel.value, 10);
-    var t = yyLines.slice(-n).join('\n');
-    if (t !== yyBox.value) { yyBox.value = t; recompare(); }
-  }
-  /* 拡張機能を更新すると古いページは接続を失う。触ると例外になるので包んでおく。 */
+  /* ============ YY側の受信 ============ */
   function extAlive() {
     try {
       return typeof chrome !== 'undefined' && chrome.runtime && !!chrome.runtime.id &&
-             chrome.storage && !!chrome.storage.local;
+        chrome.storage && !!chrome.storage.local;
     } catch (e) { return false; }
   }
   if (extAlive()) {
-    yyLabel.textContent = 'YYprobe（自動受信）';
     try {
       chrome.storage.local.get('udyy_yy', function (o) {
-        if (o && o.udyy_yy) { yyLines = o.udyy_yy.lines; applyYY(); }
+        if (o && o.udyy_yy) { yyLines = o.udyy_yy.lines; if (live) recompare(); }
       });
       chrome.storage.onChanged.addListener(function (ch, area) {
         if (area === 'local' && ch.udyy_yy && ch.udyy_yy.newValue) {
           yyLines = ch.udyy_yy.newValue.lines;
-          applyYY();
+          if (live) recompare();
         }
       });
     } catch (e) {
-      yyLabel.textContent = 'YYprobe（自動受信が切れています。ページを再読み込みしてください）';
+      yyLabel.textContent = '② YY受信が切れています。ページを再読み込みしてください';
       yyLabel.style.color = '#ffd479';
     }
+  } else {
+    yyLabel.textContent = '② 対応するYYprobeの箇所（拡張機能が無効です）';
   }
 
-  /* 字幕の追加を監視して自動更新 */
+  /* ============ 監視・移動 ============ */
   var obs = new MutationObserver(function () {
     if (!live) return;
-    clearTimeout(timer); timer = setTimeout(refreshUd, 350);
+    clearTimeout(timer);
+    timer = setTimeout(refresh, 350);
   });
   obs.observe(document.body, { childList: true, subtree: true, characterData: true });
 
-  /* ヘッダをつかんで移動 */
   (function () {
     var sx, sy, ox, oy, moving = false;
     head.addEventListener('mousedown', function (e) {
-      if (e.target !== head && e.target.tagName === 'BUTTON') return;
+      if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
       moving = true; sx = e.clientX; sy = e.clientY;
       var r = p.getBoundingClientRect(); ox = r.left; oy = r.top;
       e.preventDefault();
     });
     document.addEventListener('mousemove', function (e) {
-      if (!moving) return;
+      if (!moving || full) return;
       p.style.left = (ox + e.clientX - sx) + 'px';
       p.style.top = (oy + e.clientY - sy) + 'px';
       p.style.right = 'auto'; p.style.bottom = 'auto';
@@ -409,7 +495,7 @@ function __udyyRun() {
   })();
 
   setFull(false);
-  refreshUd();
+  refresh(true);
 })();
 
 }
