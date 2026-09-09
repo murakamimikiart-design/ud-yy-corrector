@@ -145,12 +145,16 @@ function __udyyRun() {
   head.appendChild(el('b', 'flex:1;font-size:13px', 'UD × YY ライブ比較'));
 
   var live = true;
-  var liveBtn = btn('自動取得: ON', function () {
-    live = !live;
+  function setLive(on, why) {
+    live = on;
     liveBtn.textContent = '自動取得: ' + (live ? 'ON' : '固定');
     liveBtn.style.background = live ? '#1d4d2e' : '#5a3a12';
+    liveBtn.style.borderColor = live ? '#3c9a59' : '#c08a3e';
     if (live) { refreshUd(); applyYY(); }
-  }, 'background:#1d4d2e');
+    if (why) stat.textContent = why;
+  }
+  var liveBtn = btn('自動取得: ON', function () { setLive(!live); },
+    'background:#1d4d2e;border-color:#3c9a59');
   head.appendChild(liveBtn);
 
   var nSel = el('select', 'font:13px sans-serif;padding:4px;border-radius:6px;background:#232c35;color:#e9edf1;border:1px solid #5a656f');
@@ -160,7 +164,36 @@ function __udyyRun() {
   nSel.value = '2';
   nSel.onchange = function () { refreshUd(); applyYY(); };
   head.appendChild(nSel);
+  var fullBtn = btn('全画面', function () { setFull(!full); });
+  head.appendChild(fullBtn);
   head.appendChild(btn('×', function () { obs.disconnect(); p.remove(); }));
+
+  /* 全画面：ブラウザいっぱいに広げ、文字も大きくする。
+     通常時は高さ固定の小窓、全画面時は各欄を比率で伸ばす。 */
+  function setFull(on) {
+    full = on;
+    fullBtn.textContent = full ? '小さく' : '全画面';
+    fs = full ? 21 : 15;
+    if (full) {
+      p.style.right = '0'; p.style.bottom = '0'; p.style.left = '0'; p.style.top = '0';
+      p.style.width = 'auto'; p.style.height = 'auto';
+      p.style.borderRadius = '0'; p.style.padding = '16px 20px';
+      udBox.style.flex = '1 1 0'; udBox.style.height = 'auto';
+      yyBox.style.flex = '1 1 0'; yyBox.style.height = 'auto';
+      listWrap.style.flex = '2 1 0';
+      outBox.style.flex = '1 1 0'; outBox.style.height = 'auto';
+    } else {
+      p.style.right = '14px'; p.style.bottom = '14px'; p.style.left = 'auto'; p.style.top = 'auto';
+      p.style.width = '460px'; p.style.height = 'min(620px,84vh)';
+      p.style.borderRadius = '12px'; p.style.padding = '10px';
+      udBox.style.flex = '0 0 auto'; udBox.style.height = '76px';
+      yyBox.style.flex = '0 0 auto'; yyBox.style.height = '66px';
+      listWrap.style.flex = '1 1 auto';
+      outBox.style.flex = '0 0 auto'; outBox.style.height = '84px';
+    }
+    [udBox, yyBox, outBox].forEach(function (e) { e.style.fontSize = fs + 'px'; });
+    render();
+  }
   p.appendChild(head);
 
   var udBox = el('div', 'flex:0 0 auto;background:#0c1015;border:1px solid #e8a33d55;border-radius:8px;' +
@@ -197,19 +230,37 @@ function __udyyRun() {
 
   /* ---------- 動き ---------- */
   var udText = '', result = null, timer = null;
+  var fs = 15;          // 本文の文字サイズ。全画面では大きくする
+  var full = false;
 
   function refreshUd() {
     if (!live) return;
     var a = udLines();
     var n = parseInt(nSel.value, 10);
-    udText = a.slice(-n).join('\n');
+    var t = a.slice(-n).join('\n');
+    // MutationObserver は時刻表示やスクロールでも動く。中身が同じなら作り直さない
+    // （作り直すと選択がリセットされてしまうため）
+    if (t === udText && result) return;
+    udText = t;
     udBox.textContent = udText || '（まだ字幕がありません）';
     recompare();
   }
 
   function recompare() {
+    // 直前の選択を「UD側の語＋YY側の語」で覚えておき、作り直したあとに戻す。
+    // これがないと、字幕が届くたびに UD を選んだ判断が消えてしまう。
+    var prev = {};
+    if (result) {
+      result.changes.forEach(function (c) {
+        prev[c.ud + '\u241F' + c.yy] = { choice: c.choice, custom: c.custom };
+      });
+    }
     result = yyBox.value.trim() ? compare(udText, yyBox.value)
       : { ud: udText, yy: '', changes: [] };
+    result.changes.forEach(function (c) {
+      var p = prev[c.ud + '\u241F' + c.yy];
+      if (p) { c.choice = p.choice; c.custom = p.custom; }
+    });
     render();
   }
 
@@ -223,11 +274,19 @@ function __udyyRun() {
       var row = el('div', 'border:1px solid #39424b;border-radius:8px;padding:6px;margin-bottom:5px;background:#171d24;display:flex;gap:6px;align-items:stretch');
       row.appendChild(el('div', 'font-size:11px;color:#93a2b1;display:flex;align-items:center', String(c.index)));
       function opt(kind, who, text, empty) {
-        var b = el('button', 'flex:1;text-align:left;font:15px "Hiragino Sans",sans-serif;padding:5px 8px;' +
+        var b = el('button', 'flex:1;text-align:left;font:' + fs + 'px "Hiragino Sans",sans-serif;padding:5px 8px;' +
           'border-radius:6px;border:1px solid #4a545e;background:#1d242c;color:#e9edf1;cursor:pointer');
         b.appendChild(el('span', 'display:block;font-size:10px;color:#93a2b1', who));
         b.appendChild(document.createTextNode(text || empty));
-        b.onclick = function () { c.choice = kind; render(); };
+        b.onclick = function () {
+          // 選び始めたら自動取得を止める。止めないと次の発話が届いた時点で
+          // 表示範囲がずれ、選んだ対象そのものが消えてしまう。
+          var wasLive = live;
+          c.choice = kind;
+          if (wasLive) setLive(false);
+          render();
+          if (wasLive) stat.textContent = '固定しました（決定すると自動に戻ります）';
+        };
         if (c.choice === kind) {
           b.style.borderColor = kind === 'ud' ? '#e8a33d' : '#5fb37a';
           b.style.background = kind === 'ud' ? '#4a3410' : '#14432a';
@@ -238,7 +297,9 @@ function __udyyRun() {
       row.appendChild(opt('yy', 'YYprobe', c.yy, '（削除する）'));
       var ed = btn('✎', function () {
         if (!c.custom) c.custom = c.yy || c.ud;
-        c.choice = 'custom'; render();
+        c.choice = 'custom';
+        if (live) setLive(false);
+        render();
         var inp = row.parentElement.querySelector('input[data-i="' + c.index + '"]');
         if (inp) { inp.focus(); inp.select(); }
       });
@@ -247,7 +308,7 @@ function __udyyRun() {
       listWrap.appendChild(row);
       if (c.choice === 'custom') {
         var inp = el('input', 'width:100%;margin:-2px 0 6px;padding:6px 8px;border-radius:6px;border:1px solid #7aa9ff;' +
-          'background:#0d1622;color:#e9edf1;font:15px "Hiragino Sans",sans-serif');
+          'background:#0d1622;color:#e9edf1;font:' + fs + 'px "Hiragino Sans",sans-serif');
         inp.value = c.custom; inp.setAttribute('data-i', c.index);
         inp.oninput = function () { c.custom = inp.value; paint(); };
         listWrap.appendChild(inp);
@@ -279,7 +340,9 @@ function __udyyRun() {
     var ok = false;
     try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).catch(function () { });
-    stat.textContent = ok ? '✓ コピーしました' : '選択済み。⌘C を押してください';
+    var msg = ok ? '✓ コピーしました' : '選択済み。⌘C を押してください';
+    if (!live) { setLive(true); }          // 決定したら追従を再開する
+    stat.textContent = msg + '（自動取得を再開）';
   }
 
   yyBox.addEventListener('input', function () {
@@ -345,6 +408,7 @@ function __udyyRun() {
     document.addEventListener('mouseup', function () { moving = false; });
   })();
 
+  setFull(false);
   refreshUd();
 })();
 
